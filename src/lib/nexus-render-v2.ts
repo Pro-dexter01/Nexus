@@ -241,14 +241,14 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
   const engine = await getFFmpeg();
   const stamp = Date.now();
   const inputs = files.map((f,i)=>`nexus-v2-in-${stamp}-${i}.${f.name.split(".").pop() || "mp4"}`);
+  const input = inputs[0] ?? `nexus-v2-in-${stamp}.mp4`;
   const output = `nexus-v2-out-${stamp}.mp4`;
   const progressListener = ({ progress }: { progress: number }) => onProgress?.(clamp(progress, 0, 1));
   engine.on("progress", progressListener);
-  try {
-    for (let i=0;i<files.length;i++) {
+  for (let i=0;i<files.length;i++) {
       const source=files[i], path=inputs[i];
-      if(source && path) await engine.writeFile(path,await fetchFile(source));
-    }
+    if(source && path) await engine.writeFile(path,await fetchFile(source));
+  }
 
   const start = clamp(Number(o.trimStart ?? 0), 0, 99.9) / 100;
   const end = clamp(Number(o.trimEnd ?? 100), start + 0.1, 100) / 100;
@@ -393,11 +393,6 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
       for(const path of inputs) await engine.deleteFile(path).catch(() => undefined);
       await engine.deleteFile(output).catch(() => undefined);
     }
-  } finally {
-    engine.off("progress",progressListener);
-    for(const path of inputs) await engine.deleteFile(path).catch(()=>undefined);
-    await engine.deleteFile(output).catch(()=>undefined);
-  }
   const reverse = Boolean(o.reverse);
   const freezeAtPct = o.freezeAt === undefined ? null : clamp(Number(o.freezeAt), 0, 100) / 100;
   const freezeSeconds = clamp(Number(o.freezeDuration ?? 0), 0, 30);
