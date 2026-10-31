@@ -266,6 +266,16 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
     const graph: string[] = [];
     const videoLabels: string[] = [];
     const audioLabels: string[] = [];
+    let outputWidth=1280,outputHeight=720;
+    try{
+      const dimensions:string[]=[];
+      const onVideoLog=({message}:{message:string})=>dimensions.push(message);
+      engine.on("log",onVideoLog);
+      await engine.ffprobe(["-v","error","-select_streams","v:0","-show_entries","stream=width,height","-of","csv=s=x:p=0",inputs[0]??""]);
+      engine.off("log",onVideoLog);
+      const match=dimensions.join(" ").match(/(\\d+)[x,](\\d+)/);
+      if(match){outputWidth=Math.max(2,Math.min(1920,Math.floor(Number(match[1])/2)*2));outputHeight=Math.max(2,Math.min(1920,Math.floor(Number(match[2])/2)*2));}
+    }catch{/* use a safe 720p canvas when source metadata is unavailable */}
     const hasAudioSources:boolean[]=[];
     for(const input of inputs){
       const probeLog:string[]=[];
@@ -300,13 +310,13 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
     segments.forEach((clip,index) => {
       const inputIndex=clamp(Math.floor(Number(clip.inputIndex??0)),0,inputs.length-1);
       const clipSourceDuration=Math.max(.1,Number(clip.sourceDuration||sourceDuration));
-      const sourceInput=inputs[inputIndex]??inputs[0];
       const sourceHasAudio=Boolean(hasAudioSources[inputIndex]);
       const start = clamp(clip.sourceStart,0,100) / 100 * clipSourceDuration;
       const end = clamp(clip.sourceEnd,0,100) / 100 * clipSourceDuration;
       const speed = clamp(Number(clip.speed || 1),.25,4);
       const freeze = clamp(Number(clip.freezeDuration || 0),0,30);
       const freezeAt = clip.freezeAt === undefined ? null : clamp(Number(clip.freezeAt),0,100)/100*clipSourceDuration;
+      const segmentFilters=[...vf,`scale=${outputWidth}:${outputHeight}:force_original_aspect_ratio=decrease:flags=lanczos`,`pad=${outputWidth}:${outputHeight}:(ow-iw)/2:(oh-ih)/2:color=black`,`setsar=1`,`fps=30`,`format=yuv420p`];
       const splitFreeze = freeze > 0 && freezeAt !== null && freezeAt > start + 0.04 && freezeAt < end - 0.04;
       if (splitFreeze && freezeAt !== null) {
         // Freeze is inserted at the selected source frame, not appended to the clip tail.
@@ -318,20 +328,21 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
         pieces.forEach((piece,partIndex)=>{
           const vLabel=`vpart${index}_${partIndex}`;
           if (piece.freeze) {
-            const still=[`trim=start=${freezeAt.toFixed(4)}:end=${Math.min(end,freezeAt+0.08).toFixed(4)}`,"setpts=PTS-STARTPTS",`tpad=stop_mode=clone:stop_duration=${freeze}`,...vf];
+            const still=[`trim=start=${freezeAt.toFixed(4)}:end=${Math.min(end,freezeAt+0.08).toFixed(4)}`,"setpts=PTS-STARTPTS",`tpad=stop_mode=clone:stop_duration=${freeze}`,...segmentFilters];
             graph.push(`[${inputIndex}:v:0]${still.join(",")}[${vLabel}]`);
           } else {
             const chain=[`trim=start=${piece.from.toFixed(4)}:end=${piece.to.toFixed(4)}`,"setpts=PTS-STARTPTS"];
             if(piece.reverse)chain.push("reverse","setpts=PTS-STARTPTS");
             if(speed!==1)chain.push(`setpts=PTS/${speed}`);
-            chain.push(...vf);
+            chain.push(...segmentFilters);
             graph.push(`[${inputIndex}:v:0]${chain.join(",")}[${vLabel}]`);
           }
           vparts.push(`[${vLabel}]`);
           if(hasAudio){
             const aLabel=`apart${index}_${partIndex}`;
             if(piece.freeze || !sourceHasAudio){
-              graph.push(`anullsrc=r=48000:cl=stereo,atrim=duration=${freeze},asetpts=PTS-STARTPTS[${aLabel}]`);
+              const silentDuration=piece.freeze?freeze:(piece.to-piece.from)/speed;
+              graph.push(`anullsrc=r=48000:cl=stereo,atrim=duration=${silentDuration},asetpts=PTS-STARTPTS[${aLabel}]`);
             }else{
               const chain=[`atrim=start=${piece.from.toFixed(4)}:end=${piece.to.toFixed(4)}`,"asetpts=PTS-STARTPTS","aformat=sample_rates=48000:channel_layouts=stereo"];
               if(piece.reverse)chain.push("areverse","asetpts=PTS-STARTPTS");
@@ -347,7 +358,7 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
         const v = [`trim=start=${start.toFixed(4)}:end=${end.toFixed(4)}`,"setpts=PTS-STARTPTS"];
         if (clip.reverse) v.push("reverse","setpts=PTS-STARTPTS");
         if (speed !== 1) v.push(`setpts=PTS/${speed}`);
-        if (vf.length) v.push(...vf);
+        v.push(...segmentFilters);
         if (freeze > 0) v.push(`tpad=stop_mode=clone:stop_duration=${freeze}`);
         graph.push(`[${inputIndex}:v:0]${v.join(",")}[vseg${index}]`);
         if (hasAudio) {
