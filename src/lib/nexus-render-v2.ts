@@ -299,7 +299,8 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
     const hasAudio=hasAudioSources.some(Boolean);
     const audioFilters: string[] = [];
     const volume = o.muted ? 0 : clamp(Number(o.volume ?? 100) / 100, 0, 2);
-    audioFilters.push(`volume=${volume}`);
+    if(o.keyframes?.some(point=>point.property===\"volume\"))audioFilters.push(\"volume='\"+keyframeExpression(o.keyframes,\"volume\",volume*100,0,200)+\"/100':eval=frame\");
+    else audioFilters.push(`volume=${volume}`);
     const pan = clamp(Number(o.pan ?? 0) / 100, -1, 1);
     const bass = clamp(Number(o.bass ?? 0), -12, 12);
     const treble = clamp(Number(o.treble ?? 0), -12, 12);
