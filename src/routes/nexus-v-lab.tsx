@@ -374,6 +374,7 @@ export default function NexusVLab() {
   const updateRamp=(index:number,patch:Partial<SpeedPoint>)=>{
     const next=speedRamp.map((point,i)=>i===index?{...point,...patch}:point);
     const clip=clips.find(c=>c.id===activeClip),asset=clip?mediaAssets.find(a=>a.id===clip.mediaId):undefined;
+    if(tool==="SPEED"&&clip&&(clip.reverse||(clip.freezeDuration??0)>0)){setError("Speed curves cannot be combined with reverse or freeze on the same clip yet.");return;}
     if(tool==="SPEED"&&clip&&asset){const previous=clip.speedRamp??speedRamp;const sourceLength=(clip.sourceEnd-clip.sourceStart)/100*asset.duration;const delta=rampDurationFor(next,sourceLength)-rampDurationFor(previous,sourceLength);rippleTimelineDuration(clip.id,delta);setClips(current=>current.map(c=>c.id===clip.id?{...c,speedRamp:next}:c));}
     setSpeedRamp(next);
   };
@@ -390,7 +391,7 @@ export default function NexusVLab() {
       const usedAssets=mediaAssets.filter(a=>clips.some(c=>c.mediaId===a.id));
       const renderFiles=usedAssets.length?usedAssets.map(a=>a.file):[file];
       const blob=await renderNexusVideoV2(renderFiles,{
-        timelineSegments:clips.map(c=>({id:c.id,start:c.start,sourceStart:c.sourceStart,sourceEnd:c.sourceEnd,inputIndex:Math.max(0,usedAssets.findIndex(a=>a.id===c.mediaId)),sourceDuration:usedAssets.find(a=>a.id===c.mediaId)?.duration??duration,speed:c.speed??speed,speedRamp:c.id===activeClip&&tool==="SPEED"?(c.speedRamp??speedRamp):undefined,reverse:c.reverse??false,freezeAt:c.freezeAt,freezeDuration:c.freezeDuration??0})),
+        timelineSegments:clips.map(c=>({id:c.id,start:c.start,sourceStart:c.sourceStart,sourceEnd:c.sourceEnd,inputIndex:Math.max(0,usedAssets.findIndex(a=>a.id===c.mediaId)),sourceDuration:usedAssets.find(a=>a.id===c.mediaId)?.duration??duration,speed:c.speed??speed,speedRamp:c.id===activeClip&&tool==="SPEED"&&!c.reverse&&!(c.freezeDuration??0)?(c.speedRamp??speedRamp):undefined,reverse:c.reverse??false,freezeAt:c.freezeAt,freezeDuration:c.freezeDuration??0})),
         trimStart:active?.sourceStart??0,trimEnd:active?.sourceEnd??100,speed:active?.speed??speed,speedRamp:tool==="SPEED"?speedRamp:[],reverse:active?.reverse??false,freezeAt:active?.freezeAt,freezeDuration:active?.freezeDuration,
         volume:currentAnimatedVolume,muted,pan,bass,treble,compress,audioFadeIn,audioFadeOut,normalizeAudio,opacity:currentAnimatedOpacity,blur:currentAnimatedBlur,blendMode,maskType:mask,maskFeather,effect:chromaKey?"CHROMA":effect,effects:effectStack.filter(x=>x.enabled).map(x=>({effect:x.effect,enabled:x.enabled,opacity:x.opacity})),chromaColor,chromaSimilarity,chromaBlend,...adjustment,scale:currentAnimatedScale,scaleX,scaleY,positionX:currentAnimatedPosX,positionY:currentAnimatedPosY,rotation:currentAnimatedRotation,flipX,flipY,skew,upscale:mode==="enhance"?upscale:100,
         targetFps,keyframes,text,enhance:mode==="enhance"||enhance,compression:renderCompression,durationSeconds:duration
