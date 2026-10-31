@@ -188,11 +188,9 @@ export default function NexusVLab() {
     if(!next.type.startsWith("video/")){setError("Additional timeline media must be a supported video file.");return;}
     if(next.size>MAX){setError("Each source file must be 650 MB or smaller.");return;}
     if(mediaAssets.some(a=>a.name===next.name&&a.file.size===next.size)){setError("That source is already in the media bin.");return;}
-    const d=await readDuration(next),id=crypto.randomUUID(),url=URL.createObjectURL(next),clipId=crypto.randomUUID();
-    const previousDuration=Math.max(.1,duration),nextDuration=previousDuration+d,ratio=previousDuration/nextDuration;
-    setClips(current=>[...current.map(c=>({...c,start:c.start*ratio,end:c.end*ratio})),{id:clipId,mediaId:id,name:next.name,start:ratio*100,end:100,sourceStart:0,sourceEnd:100,color:"#638a9a"}]);
+    const d=await readDuration(next),id=crypto.randomUUID(),url=URL.createObjectURL(next);
     setMediaAssets(current=>[...current,{id,name:next.name,file:next,url,duration:d}]);
-    setDuration(nextDuration);setFile(next);pendingSeekRef.current=0;resumeAfterSourceLoad.current=false;setSrc(url);setActiveClip(clipId);setPlayhead(ratio*100);setOutput(null);setError("");
+    setOutput(null);setError("");
   };
   const addAssetToTimeline=(id:string)=>{
     const asset=mediaAssets.find(a=>a.id===id);if(!asset)return;
