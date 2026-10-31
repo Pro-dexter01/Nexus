@@ -405,18 +405,18 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
     const keyframes=o.keyframes??[];
     const hasKF=(property:string)=>keyframes.some(point=>point.property===property);
     if(hasKF("scale")||hasKF("positionX")||hasKF("positionY")){
-      const zoom='max(1\\\\,min(3\\\\,'+keyframeExpression(keyframes,'scale',Number(o.scale??100),25,300)+'/100))';
+      const zoom='max(1\\,min(3\\,'+keyframeExpression(keyframes,'scale',Number(o.scale??100),25,300)+'/100))';
       const x=keyframeExpression(keyframes,'positionX',Number(o.positionX??0),-100,100);
       const y=keyframeExpression(keyframes,'positionY',Number(o.positionY??0),-100,100);
-      motionFilters.push('zoompan=z='+zoom+':x=\\'iw/2-iw/zoom/2+('+x+')*iw/200\\':y=\\'ih/2-ih/zoom/2+('+y+')*ih/200\\':d=1:s='+outputWidth+'x'+outputHeight+':fps=30');
+      motionFilters.push('zoompan=z='+zoom+':x=\'iw/2-iw/zoom/2+('+x+')*iw/200\':y=\'ih/2-ih/zoom/2+('+y+')*ih/200\':d=1:s='+outputWidth+'x'+outputHeight+':fps=30');
     }
     if(hasKF("rotation")){
       const angle=keyframeExpression(keyframes,'rotation',Number(o.rotation??0),-180,180);
-      motionFilters.push('rotate=angle=\\''+angle+'*PI/180\\':ow='+outputWidth+':oh='+outputHeight+':c=black');
+      motionFilters.push('rotate=angle=\''+angle+'*PI/180\':ow='+outputWidth+':oh='+outputHeight+':c=black');
     }
     if(hasKF("opacity")){
       const alpha=keyframeExpression(keyframes,'opacity',Number(o.opacity??100),0,100);
-      motionFilters.push('format=rgb24,geq=r=\\'r(X,Y)*('+alpha+'/100)\\':g=\\'g(X,Y)*('+alpha+'/100)\\':b=\\'b(X,Y)*('+alpha+'/100)\\',format=yuv420p');
+      motionFilters.push('format=rgb24,geq=r=\'r(X,Y)*('+alpha+'/100)\':g=\'g(X,Y)*('+alpha+'/100)\':b=\'b(X,Y)*('+alpha+'/100)\',format=yuv420p');
     }
     if(motionFilters.length)graph.push("[vconcat]"+motionFilters.join(",")+"[vout]");
     else graph.push("[vconcat]null[vout]");
