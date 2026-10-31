@@ -109,6 +109,8 @@ export default function NexusVLab() {
   const addFileRef = useRef<HTMLInputElement>(null);
   const pendingSeekRef = useRef<number|null>(null);
   const resumeAfterSourceLoad = useRef(false);
+  const freezeTimerRef = useRef<number|null>(null);
+  const freezeActiveRef = useRef(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const draggingPlayhead = useRef(false);
@@ -199,7 +201,9 @@ export default function NexusVLab() {
     setClips(current=>[...current.map(c=>({...c,start:c.start*ratio,end:c.end*ratio})),{id:clipId,mediaId:id,name:asset.name,start:ratio*100,end:100,sourceStart:0,sourceEnd:100,color:"#638a9a"}]);
     setDuration(nextDuration);setFile(asset.file);pendingSeekRef.current=0;resumeAfterSourceLoad.current=false;setSrc(asset.url);setActiveClip(clipId);setPlayhead(ratio*100);setOutput(null);setError("");
   };
+  const clearFreezeHold=()=>{if(freezeTimerRef.current!==null){window.clearTimeout(freezeTimerRef.current);freezeTimerRef.current=null;}freezeActiveRef.current=false;};
   const activateClip=(clip:Clip)=>{
+    clearFreezeHold();
     const asset=mediaAssets.find(a=>a.id===clip.mediaId);if(!asset)return;
     setActiveClip(clip.id);setFile(asset.file);
     if(src!==asset.url){pendingSeekRef.current=clip.sourceStart/100*asset.duration;resumeAfterSourceLoad.current=playing;setSrc(asset.url);}
@@ -214,6 +218,7 @@ export default function NexusVLab() {
     const p=await getNexusProject(id); if(p)chooseFile(new File([p.file],p.fileName,{type:p.fileType}));
   };
   const seek=(p:number)=>{
+    clearFreezeHold();
     const next=Math.max(0,Math.min(100,p));
     setPlayhead(next);
     if(output&&videoRef.current&&duration){videoRef.current.currentTime=duration*next/100;return;}
@@ -226,26 +231,32 @@ export default function NexusVLab() {
       const asset=mediaAssets.find(a=>a.id===clip.mediaId);if(asset){setFile(asset.file);if(src!==asset.url){pendingSeekRef.current=sourcePct/100*asset.duration;resumeAfterSourceLoad.current=playing;setSrc(asset.url);}else if(videoRef.current)videoRef.current.currentTime=sourcePct/100*asset.duration;}
     }
   };
+  const advanceToNextClip=(current:Clip,ordered:Clip[])=>{
+    const index=ordered.findIndex(c=>c.id===current.id),next=ordered[index+1];
+    if(next&&videoRef.current){
+      const nextAsset=mediaAssets.find(a=>a.id===next.mediaId);if(!nextAsset)return;
+      setActiveClip(next.id);setFile(nextAsset.file);setPlayhead(next.start);
+      if(src!==nextAsset.url){pendingSeekRef.current=next.sourceStart/100*nextAsset.duration;resumeAfterSourceLoad.current=true;setSrc(nextAsset.url);}
+      else{videoRef.current.currentTime=next.sourceStart/100*nextAsset.duration;void videoRef.current.play();setPlaying(true);}
+    }else{setPlayhead(current.end);videoRef.current?.pause();setPlaying(false);}
+  };
   const syncPreviewTime=(sourceTime:number)=>{
     if(output){setPlayhead(duration?sourceTime/duration*100:0);return;}
     const ordered=[...clips].sort((a,b)=>a.start-b.start);
     const current=ordered.find(c=>c.id===activeClip)??ordered[0];
-    if(!current||!duration)return;
+    if(!current||!duration||freezeActiveRef.current)return;
     const asset=mediaAssets.find(a=>a.id===current.mediaId);if(!asset)return;
     const sourceStart=current.sourceStart/100*asset.duration;
     const sourceEnd=current.sourceEnd/100*asset.duration;
     if(sourceTime>=sourceEnd-.04){
-      const index=ordered.findIndex(c=>c.id===current.id);
-      const next=ordered[index+1];
-      if(next&&videoRef.current){
-        const nextAsset=mediaAssets.find(a=>a.id===next.mediaId);if(!nextAsset)return;
-        setActiveClip(next.id);setFile(nextAsset.file);setPlayhead(next.start);
-        if(src!==nextAsset.url){pendingSeekRef.current=next.sourceStart/100*nextAsset.duration;resumeAfterSourceLoad.current=true;setSrc(nextAsset.url);}else videoRef.current.currentTime=next.sourceStart/100*nextAsset.duration;
-      }else{
-        setPlayhead(current.end);
-        videoRef.current?.pause();
-        setPlaying(false);
-      }
+      if((current.freezeDuration??0)>0){
+        freezeActiveRef.current=true;
+        const freezeSource=(current.freezeAt??current.sourceEnd)/100*asset.duration;
+        if(videoRef.current){videoRef.current.pause();videoRef.current.currentTime=Math.max(sourceStart,Math.min(sourceEnd-.02,freezeSource));}
+        const freezeLocal=Math.max(0,Math.min(1,(freezeSource-sourceStart)/Math.max(.001,sourceEnd-sourceStart)));
+        setPlayhead(current.start+freezeLocal*(current.end-current.start));setPlaying(false);
+        freezeTimerRef.current=window.setTimeout(()=>{freezeTimerRef.current=null;freezeActiveRef.current=false;advanceToNextClip(current,ordered);},(current.freezeDuration??0)*1000);
+      }else advanceToNextClip(current,ordered);
       return;
     }
     const local=Math.max(0,Math.min(1,(sourceTime-sourceStart)/Math.max(.001,sourceEnd-sourceStart)));
