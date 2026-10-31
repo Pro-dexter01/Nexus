@@ -271,9 +271,8 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
       const dimensions:string[]=[];
       const onVideoLog=({message}:{message:string})=>dimensions.push(message);
       engine.on("log",onVideoLog);
-      await engine.ffprobe(["-v","error","-select_streams","v:0","-show_entries","stream=width,height","-of","csv=s=x:p=0",inputs[0]??""]);
-      engine.off("log",onVideoLog);
-      const match=dimensions.join(" ").match(/(\\d+)[x,](\\d+)/);
+      try{await engine.ffprobe(["-v","error","-select_streams","v:0","-show_entries","stream=width,height","-of","csv=s=x:p=0",inputs[0]??""]);}finally{engine.off("log",onVideoLog);}
+      const match=dimensions.join(" ").match(/(\d+)[x,](\d+)/);
       if(match){outputWidth=Math.max(2,Math.min(1920,Math.floor(Number(match[1])/2)*2));outputHeight=Math.max(2,Math.min(1920,Math.floor(Number(match[2])/2)*2));}
     }catch{/* use a safe 720p canvas when source metadata is unavailable */}
     const hasAudioSources:boolean[]=[];
@@ -404,6 +403,7 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
       for(const path of inputs) await engine.deleteFile(path).catch(() => undefined);
       await engine.deleteFile(output).catch(() => undefined);
     }
+  }
   const reverse = Boolean(o.reverse);
   const freezeAtPct = o.freezeAt === undefined ? null : clamp(Number(o.freezeAt), 0, 100) / 100;
   const freezeSeconds = clamp(Number(o.freezeDuration ?? 0), 0, 30);
