@@ -236,7 +236,7 @@ export default function NexusVLab() {
     const ordered=[...clips].sort((a,b)=>a.start-b.start);
     const clip=ordered.find(c=>next>=c.start&&next<=c.end)??ordered.reduce<Clip|undefined>((best,c)=>!best||Math.abs(c.start-next)<Math.abs(best.start-next)?c:best,undefined);
     if(clip){
-      setActiveClip(clip.id);
+      setActiveClip(clip.id);setSpeedRamp(clip.speedRamp??defaultSpeedRamp);
       const local=Math.max(0,Math.min(1,(next-clip.start)/Math.max(.001,clip.end-clip.start)));
       const sourcePct=clip.sourceStart+(clip.sourceEnd-clip.sourceStart)*local;
       const asset=mediaAssets.find(a=>a.id===clip.mediaId);if(asset){setFile(asset.file);if(videoRef.current)videoRef.current.playbackRate=playbackRateFor(clip,sourcePct/100*asset.duration);if(src!==asset.url){pendingSeekRef.current=sourcePct/100*asset.duration;resumeAfterSourceLoad.current=playing;setSrc(asset.url);}else if(videoRef.current)videoRef.current.currentTime=sourcePct/100*asset.duration;}
@@ -246,7 +246,7 @@ export default function NexusVLab() {
     const index=ordered.findIndex(c=>c.id===current.id),next=ordered[index+1];
     if(next&&videoRef.current){
       const nextAsset=mediaAssets.find(a=>a.id===next.mediaId);if(!nextAsset)return;
-      setActiveClip(next.id);setFile(nextAsset.file);setPlayhead(next.start);
+      setActiveClip(next.id);setSpeedRamp(next.speedRamp??defaultSpeedRamp);setFile(nextAsset.file);setPlayhead(next.start);
       if(src!==nextAsset.url){pendingSeekRef.current=next.sourceStart/100*nextAsset.duration;resumeAfterSourceLoad.current=true;setSrc(nextAsset.url);}
       else{videoRef.current.currentTime=next.sourceStart/100*nextAsset.duration;void videoRef.current.play();setPlaying(true);}
     }else{setPlayhead(current.end);videoRef.current?.pause();setPlaying(false);}
