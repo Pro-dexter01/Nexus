@@ -146,6 +146,7 @@ function keyframeExpression(points:{time:number;value:number;property:string}[],
 }
 function buildVisualFilters(o: NexusRenderOptions) {
   const filters: string[] = [];
+  const hasKeyframe=(property:string)=>Boolean(o.keyframes?.some(point=>point.property===property));
   const exposure = Number(o.exposure || 0);
   const b = Number(o.brightness || 0);
   const c = Number(o.contrast || 0);
@@ -195,8 +196,8 @@ function buildVisualFilters(o: NexusRenderOptions) {
   const sx = clamp(Number(o.scaleX ?? 100) / 100, 0.25, 3);
   const sy = clamp(Number(o.scaleY ?? 100) / 100, 0.25, 3);
   if (sx !== 1 || sy !== 1) filters.push(`scale=iw*${sx}:ih*${sy}:flags=lanczos`);
-  if (o.rotation) filters.push(`rotate=${clamp(Number(o.rotation),-180,180)}*PI/180:fillcolor=black@0`);
-  if (o.positionX || o.positionY) {
+  if (o.rotation && !hasKeyframe("rotation")) filters.push(`rotate=${clamp(Number(o.rotation),-180,180)}*PI/180:fillcolor=black@0`);
+  if ((o.positionX || o.positionY) && !hasKeyframe("positionX") && !hasKeyframe("positionY")) {
     const x = Math.round(clamp(Number(o.positionX), -100, 100) * 8);
     const y = Math.round(clamp(Number(o.positionY), -100, 100) * 8);
     const ax = Math.abs(x), ay = Math.abs(y);
@@ -228,7 +229,7 @@ function buildVisualFilters(o: NexusRenderOptions) {
     filters.push("hqdn3d=0.8:0.8:4:4");
     filters.push("unsharp=5:5:0.85:5:5:0");
   }
-  if (o.scale && o.scale !== 100) filters.push(`scale=iw*${o.scale / 100}:ih*${o.scale / 100}:flags=lanczos`);
+  if (o.scale && o.scale !== 100 && !hasKeyframe("scale")) filters.push(`scale=iw*${o.scale / 100}:ih*${o.scale / 100}:flags=lanczos`);
   if (o.upscale && o.upscale !== 100) filters.push(`scale=iw*${o.upscale / 100}:ih*${o.upscale / 100}:flags=lanczos`);
   if (o.maskType === "RECT") {
     const feather = clamp(Number(o.maskFeather || 0) / 25, 0, 4);
@@ -240,7 +241,7 @@ function buildVisualFilters(o: NexusRenderOptions) {
     const mode = ["multiply","screen","overlay","darken","lighten"].includes(o.blendMode) ? o.blendMode : "normal";
     if (mode !== "normal") filters.push(`blend=all_mode=${mode}`);
   }
-  if (o.opacity !== undefined && o.opacity < 100) filters.push(`format=yuva420p,colorchannelmixer=aa=${clamp(o.opacity / 100, 0, 1)}`);
+  if (o.opacity !== undefined && o.opacity < 100 && !hasKeyframe("opacity")) filters.push(`format=yuva420p,colorchannelmixer=aa=${clamp(o.opacity / 100, 0, 1)}`);
   return filters;
 }
 
