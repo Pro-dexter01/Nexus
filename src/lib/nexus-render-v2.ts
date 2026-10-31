@@ -316,8 +316,7 @@ export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onPr
     if (hasAudio) graph.push(`${audioLabels.join("")}concat=n=${audioLabels.length}:v=0:a=1,${audioFilters.join(",")}[aout]`);
     args.push("-filter_complex",graph.join(";"),"-map","[vout]");
     if (hasAudio) args.push("-map","[aout]");
-    args.push("-an");
-    if (hasAudio) args.pop();
+    if (!hasAudio) args.push("-an");
     // Output frame-rate conforming (dup/drop) is supported; this is not AI frame interpolation.
     if (o.targetFps) args.push("-r",String(clamp(Number(o.targetFps),12,120)));
     const preset = o.compression || "BALANCED";
@@ -326,16 +325,20 @@ export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onPr
     args.push("-c:v","libx264","-preset","veryfast","-crf",crf,"-maxrate",maxrate,"-bufsize",preset === "SOCIAL" ? "10M" : preset === "HIGH_QUALITY" ? "28M" : "16M","-pix_fmt","yuv420p");
     if (hasAudio) args.push("-c:a","aac","-b:a",preset === "SOCIAL" ? "128k" : "192k");
     args.push("-movflags","+faststart","-y",output);
-    const result = await engine.exec(args);
-    if (result !== 0) throw new Error("NEXUS could not assemble the full timeline. Check the source codec and clip ranges.");
-    const data = await engine.readFile(output);
-    await engine.deleteFile(input).catch(() => undefined);
-    await engine.deleteFile(output).catch(() => undefined);
-    onProgress?.(1);
-    const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
-    const buffer = new ArrayBuffer(bytes.byteLength);
-    new Uint8Array(buffer).set(bytes);
-    return new Blob([buffer], { type: "video/mp4" });
+    try {
+      const result = await engine.exec(args);
+      if (result !== 0) throw new Error("NEXUS could not assemble the full timeline. Check the source codec and clip ranges.");
+      const data = await engine.readFile(output);
+      onProgress?.(1);
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
+      const buffer = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(buffer).set(bytes);
+      return new Blob([buffer], { type: "video/mp4" });
+    } finally {
+      engine.off("progress", progressListener);
+      await engine.deleteFile(input).catch(() => undefined);
+      await engine.deleteFile(output).catch(() => undefined);
+    }
   }
   const reverse = Boolean(o.reverse);
   const freezeAtPct = o.freezeAt === undefined ? null : clamp(Number(o.freezeAt), 0, 100) / 100;
