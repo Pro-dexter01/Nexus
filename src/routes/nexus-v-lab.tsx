@@ -396,6 +396,7 @@ export default function NexusVLab() {
 
   const process=async(mode:"export"|"enhance")=>{
     if(!file)return;
+    if(!clips.length){setError("Add at least one clip to the timeline before rendering.");return;}
     setProcessing(true);setProgress(0);setError("");setOutput(null);
     try{
       const renderCompression=mode==="enhance"?compression:(exportQuality==="MAXIMUM"?"HIGH_QUALITY":exportQuality==="SMALLER"?"SOCIAL":compression);
