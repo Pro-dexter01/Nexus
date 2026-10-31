@@ -288,7 +288,8 @@ export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onPr
     if (compress > 0) audioFilters.push(`acompressor=threshold=${-30+compress*.1}dB:ratio=${(1+compress/12).toFixed(2)}:attack=5:release=80:makeup=1`);
     if (o.normalizeAudio) audioFilters.push("loudnorm=I=-14:TP=-1.5:LRA=11");
     if (o.audioFadeIn) audioFilters.push(`afade=t=in:st=0:d=${clamp(Number(o.audioFadeIn),0,30)}`);
-    if (o.audioFadeOut) audioFilters.push(`afade=t=out:st=0:d=${clamp(Number(o.audioFadeOut),0,30)}`);
+    const timelineSeconds = segments.reduce((total,clip) => total + ((clamp(clip.sourceEnd,0,100)-clamp(clip.sourceStart,0,100))/100*sourceDuration)/clamp(Number(clip.speed||1),.25,4) + clamp(Number(clip.freezeDuration||0),0,30),0);
+    if (o.audioFadeOut) { const fade = clamp(Number(o.audioFadeOut),0,30); audioFilters.push(`afade=t=out:st=${Math.max(0,timelineSeconds-fade)}:d=${fade}`); }
     segments.forEach((clip,index) => {
       const start = clamp(clip.sourceStart,0,100) / 100 * sourceDuration;
       const end = clamp(clip.sourceEnd,0,100) / 100 * sourceDuration;
@@ -316,7 +317,7 @@ export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onPr
     if (hasAudio) args.push("-map","[aout]");
     args.push("-an");
     if (hasAudio) args.pop();
-    if (o.targetFps) args.push("-r",String(clamp(Number(o.targetFps),12,120)));
+    if (o.interpolation && o.targetFps) args.push("-r",String(clamp(Number(o.targetFps),12,120)));
     const preset = o.compression || "BALANCED";
     const crf = preset === "SOCIAL" ? "26" : preset === "HIGH_QUALITY" ? "18" : "22";
     const maxrate = preset === "SOCIAL" ? "5M" : preset === "HIGH_QUALITY" ? "14M" : "8M";
