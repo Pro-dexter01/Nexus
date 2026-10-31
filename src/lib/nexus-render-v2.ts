@@ -22,7 +22,7 @@ async function getFFmpeg() {
 }
 
 export type SpeedPoint = { position: number; speed: number };
-export type NexusTimelineSegment = { id: string; start: number; sourceStart: number; sourceEnd: number; speed?: number; reverse?: boolean; freezeDuration?: number };
+export type NexusTimelineSegment = { id: string; start: number; sourceStart: number; sourceEnd: number; speed?: number; reverse?: boolean; freezeAt?: number; freezeDuration?: number };
 
 export type NexusRenderOptions = {
   trimStart?: number;
@@ -240,7 +240,8 @@ export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onPr
   const stamp = Date.now();
   const input = `nexus-v2-in-${stamp}.${file.name.split(".").pop() || "mp4"}`;
   const output = `nexus-v2-out-${stamp}.mp4`;
-  engine.on("progress", ({ progress }) => onProgress?.(clamp(progress, 0, 1)));
+  const progressListener = ({ progress }: { progress: number }) => onProgress?.(clamp(progress, 0, 1));
+  engine.on("progress", progressListener);
   await engine.writeFile(input, await fetchFile(file));
 
   const start = clamp(Number(o.trimStart ?? 0), 0, 99.9) / 100;
@@ -317,7 +318,8 @@ export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onPr
     if (hasAudio) args.push("-map","[aout]");
     args.push("-an");
     if (hasAudio) args.pop();
-    if (o.interpolation && o.targetFps) args.push("-r",String(clamp(Number(o.targetFps),12,120)));
+    // Output frame-rate conforming (dup/drop) is supported; this is not AI frame interpolation.
+    if (o.targetFps) args.push("-r",String(clamp(Number(o.targetFps),12,120)));
     const preset = o.compression || "BALANCED";
     const crf = preset === "SOCIAL" ? "26" : preset === "HIGH_QUALITY" ? "18" : "22";
     const maxrate = preset === "SOCIAL" ? "5M" : preset === "HIGH_QUALITY" ? "14M" : "8M";
@@ -381,7 +383,7 @@ export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onPr
       if (freezeTime > 0 && freezeTime < clipDuration) timeFilters.push(`trim=start=0:end=${clipDuration + freezeSeconds}`);
     }
     const allVideoFilters = [...timeFilters, ...vf];
-    if (o.interpolation && o.targetFps) args.push("-r", String(o.targetFps));
+    if (o.targetFps) args.push("-r", String(clamp(Number(o.targetFps),12,120)));
     if (speed !== 1) allVideoFilters.push(`setpts=PTS/${speed}`);
     if (allVideoFilters.length) args.push("-vf", allVideoFilters.join(","));
     args.push("-map", "0:v:0", "-map", "0:a?");
@@ -424,14 +426,18 @@ export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onPr
   const maxrate = preset === "SOCIAL" ? "5M" : preset === "HIGH_QUALITY" ? "14M" : "8M";
   args.push("-c:v", "libx264", "-preset", "veryfast", "-crf", crf, "-maxrate", maxrate, "-bufsize", preset === "SOCIAL" ? "10M" : preset === "HIGH_QUALITY" ? "28M" : "16M", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", preset === "SOCIAL" ? "128k" : "192k", "-movflags", "+faststart", "-y", output);
 
-  const result = await engine.exec(args);
-  if (result !== 0) throw new Error("NEXUS could not render this edit.");
-  const data = await engine.readFile(output);
-  await engine.deleteFile(input).catch(() => undefined);
-  await engine.deleteFile(output).catch(() => undefined);
-  onProgress?.(1);
-  const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
-  const buffer = new ArrayBuffer(bytes.byteLength);
-  new Uint8Array(buffer).set(bytes);
-  return new Blob([buffer], { type: "video/mp4" });
+  try {
+    const result = await engine.exec(args);
+    if (result !== 0) throw new Error("NEXUS could not render this edit.");
+    const data = await engine.readFile(output);
+    onProgress?.(1);
+    const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
+    const buffer = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(buffer).set(bytes);
+    return new Blob([buffer], { type: "video/mp4" });
+  } finally {
+    engine.off("progress", progressListener);
+    await engine.deleteFile(input).catch(() => undefined);
+    await engine.deleteFile(output).catch(() => undefined);
+  }
 }
