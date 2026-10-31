@@ -77,6 +77,7 @@ export default function NexusVLab() {
   const [enhance,setEnhance] = useState(false);
   const [compression,setCompression] = useState<"SOCIAL"|"BALANCED"|"HIGH_QUALITY">("BALANCED");
   const [text,setText] = useState("");
+  const [textLayers,setTextLayers] = useState<{id:string;text:string;start:number;end:number}[]>([]);
   const [mask,setMask] = useState<"NONE"|"RECT"|"CIRCLE">("NONE");
   const [maskFeather,setMaskFeather] = useState(0);
   const [blendMode,setBlendMode] = useState("normal");
@@ -410,6 +411,16 @@ export default function NexusVLab() {
   const freezeFrame=()=>{if(!active)return;const at=Math.max(0,Math.min(1,(playhead-active.start)/Math.max(.001,active.end-active.start)));const sourceAt=active.sourceStart+at*(active.sourceEnd-active.sourceStart);const existing=active.freezeDuration??0;const next=existing>0?0:1.5;setClips(cs=>cs.map(c=>c.id===activeClip?{...c,freezeAt:sourceAt,freezeDuration:next}:c));rippleTimelineDuration(active.id,next-existing);};
   const setFreezeDuration=(seconds:number)=>{if(!active)return;const next=Math.max(0,seconds),existing=active.freezeDuration??0;setClips(cs=>cs.map(c=>c.id===activeClip?{...c,freezeDuration:next}:c));rippleTimelineDuration(active.id,next-existing);};
   const resetAdjustments=()=>setAdjustment({exposure:0,brightness:0,contrast:0,saturation:0,vibrance:0,temperature:0,tint:0,highlights:0,shadows:0,whites:0,blacks:0,clarity:0,texture:0,dehaze:0,sharpness:0,fade:0,vignette:0,grain:0,red:0,green:0,blue:0,structure:0,lift:0,gamma:0,gain:0,midtones:0});
+  const addTextLayer=()=>{
+    const value=text.trim();
+    if(!value){setError("Enter title text before adding a timeline layer.");return;}
+    const start=playhead/100*duration;
+    const layer={id:crypto.randomUUID(),text:value,start,end:Math.min(duration,start+3)};
+    if(layer.end<=layer.start){setError("Move the playhead before the end of the timeline.");return;}
+    setTextLayers(current=>[...current,layer].sort((a,b)=>a.start-b.start));
+    setError("");
+  };
+  const removeTextLayer=(id:string)=>setTextLayers(current=>current.filter(layer=>layer.id!==id));
   const addKeyframe=()=>{
     const t=playhead/100*duration;
     const value = selectedProperty==="scale"?scale:selectedProperty==="opacity"?opacity:selectedProperty==="blur"?blur:selectedProperty==="rotation"?rotation:selectedProperty==="positionX"?posX:selectedProperty==="positionY"?posY:selectedProperty==="volume"?volume:scale;
@@ -446,7 +457,7 @@ export default function NexusVLab() {
         timelineSegments:clips.map(c=>({id:c.id,start:c.start,sourceStart:c.sourceStart,sourceEnd:c.sourceEnd,inputIndex:Math.max(0,usedAssets.findIndex(a=>a.id===c.mediaId)),sourceDuration:usedAssets.find(a=>a.id===c.mediaId)?.duration??duration,speed:c.speed??speed,speedRamp:c.id===activeClip&&tool==="SPEED"&&!c.reverse&&!(c.freezeDuration??0)?(c.speedRamp??speedRamp):undefined,transitionIn:c.transitionIn,reverse:c.reverse??false,freezeAt:c.freezeAt,freezeDuration:c.freezeDuration??0})),
         trimStart:active?.sourceStart??0,trimEnd:active?.sourceEnd??100,speed:active?.speed??speed,speedRamp:tool==="SPEED"?speedRamp:[],reverse:active?.reverse??false,freezeAt:active?.freezeAt,freezeDuration:active?.freezeDuration,
         volume:currentAnimatedVolume,muted,pan,bass,treble,compress,audioFadeIn,audioFadeOut,normalizeAudio,opacity:currentAnimatedOpacity,blur:currentAnimatedBlur,blendMode,maskType:mask,maskFeather,effect:chromaKey?"CHROMA":effect,effects:effectStack.filter(x=>x.enabled).map(x=>({effect:x.effect,enabled:x.enabled,opacity:x.opacity})),chromaColor,chromaSimilarity,chromaBlend,...adjustment,scale:currentAnimatedScale,scaleX,scaleY,positionX:currentAnimatedPosX,positionY:currentAnimatedPosY,rotation:currentAnimatedRotation,flipX,flipY,skew,upscale:mode==="enhance"?upscale:100,
-        targetFps,keyframes,text,enhance:mode==="enhance"||enhance,compression:renderCompression,durationSeconds:duration
+        targetFps,keyframes,textLayers,enhance:mode==="enhance"||enhance,compression:renderCompression,durationSeconds:duration
       },setProgress);
       setOutput(URL.createObjectURL(blob));
     }catch(e){setError(e instanceof Error?e.message:"Render failed.");}
@@ -454,7 +465,7 @@ export default function NexusVLab() {
   };
 
   if(!file)return <Landing projects={projects} onPick={()=>fileRef.current?.click()} onOpen={openProject} fileRef={fileRef} onChoose={chooseFile}/>;
-  return <NexusEditorDashboard p={{file,mediaAssets,addMediaFile,addMediaFiles,addAssetToTimeline,onVideoMetadata,animatedScale:currentAnimatedScale,animatedOpacity:currentAnimatedOpacity,animatedBlur:currentAnimatedBlur,animatedRotation:currentAnimatedRotation,animatedPosX:currentAnimatedPosX,animatedPosY:currentAnimatedPosY,animatedVolume:currentAnimatedVolume,src,output,videoRef,duration,setDuration,playhead,setPlayhead,seek,playing,setPlaying,muted,setMuted,tool,subTool,setTool,setSubTool,clips,setClips,activeClip,setActiveClip,effect,setEffect:selectEffect,effectStack,updateEffectLayer,removeEffectLayer,speed,setSpeed,speedRamp,updateRamp,volume,setVolume,pan,setPan,bass,setBass,treble,setTreble,adjustment,setAdjustment,resetAdjustments,text,setText,mask,setMask,maskFeather,setMaskFeather,blendMode,setBlendMode,chromaKey,setChromaKey,chromaColor,setChromaColor,scale,setScale,posX,setPosX,posY,setPosY,rotation,setRotation,scaleX,setScaleX,scaleY,setScaleY,opacity,setOpacity,keyframes,addKeyframe,setKeyframes,selectedProperty,setSelectedProperty,waveform,beatMarkers,addManualBeat,autoBeatMarkers,clearBeatMarkers,targetFps,setTargetFps,enhance,setEnhance,compression,setCompression,processing,progress,process,error,setError,split,deleteClip,duplicateClip,cutRange,rippleDelete,trimToPlayhead,reverseClip,freezeFrame,markIn,markOut,rangeStart,rangeEnd,mediaCollapsed,setMediaCollapsed,fileRef,addFileRef,onReplaceFile:chooseFile,onActivateClip:activateClip,applyTransition,syncPreviewTime}}/>;
+  return <NexusEditorDashboard p={{file,mediaAssets,addMediaFile,addMediaFiles,addAssetToTimeline,onVideoMetadata,animatedScale:currentAnimatedScale,animatedOpacity:currentAnimatedOpacity,animatedBlur:currentAnimatedBlur,animatedRotation:currentAnimatedRotation,animatedPosX:currentAnimatedPosX,animatedPosY:currentAnimatedPosY,animatedVolume:currentAnimatedVolume,src,output,videoRef,duration,setDuration,playhead,setPlayhead,seek,playing,setPlaying,muted,setMuted,tool,subTool,setTool,setSubTool,clips,setClips,activeClip,setActiveClip,effect,setEffect:selectEffect,effectStack,updateEffectLayer,removeEffectLayer,speed,setSpeed,speedRamp,updateRamp,volume,setVolume,pan,setPan,bass,setBass,treble,setTreble,adjustment,setAdjustment,resetAdjustments,text,setText,textLayers,addTextLayer,removeTextLayer,mask,setMask,maskFeather,setMaskFeather,blendMode,setBlendMode,chromaKey,setChromaKey,chromaColor,setChromaColor,scale,setScale,posX,setPosX,posY,setPosY,rotation,setRotation,scaleX,setScaleX,scaleY,setScaleY,opacity,setOpacity,keyframes,addKeyframe,setKeyframes,selectedProperty,setSelectedProperty,waveform,beatMarkers,addManualBeat,autoBeatMarkers,clearBeatMarkers,targetFps,setTargetFps,enhance,setEnhance,compression,setCompression,processing,progress,process,error,setError,split,deleteClip,duplicateClip,cutRange,rippleDelete,trimToPlayhead,reverseClip,freezeFrame,markIn,markOut,rangeStart,rangeEnd,mediaCollapsed,setMediaCollapsed,fileRef,addFileRef,onReplaceFile:chooseFile,onActivateClip:activateClip,applyTransition,syncPreviewTime}}/>;
 
   const visualStyle={
     opacity:opacity/100,
