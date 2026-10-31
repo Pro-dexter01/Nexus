@@ -255,10 +255,8 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
   const output = `nexus-v2-out-${stamp}.mp4`;
   const progressListener = ({ progress }: { progress: number }) => onProgress?.(clamp(progress, 0, 1));
   engine.on("progress", progressListener);
-  for (let i=0;i<files.length;i++) {
-      const source=files[i], path=inputs[i];
-    if(source && path) await engine.writeFile(path,await fetchFile(source));
-  }
+  const cleanup=async()=>{engine.off("progress",progressListener);for(const path of inputs)await engine.deleteFile(path).catch(()=>undefined);await engine.deleteFile(output).catch(()=>undefined);};
+  try{for(let i=0;i<files.length;i++){const source=files[i],path=inputs[i];if(source&&path)await engine.writeFile(path,await fetchFile(source));}}catch(error){await cleanup();throw error;}
 
   const start = clamp(Number(o.trimStart ?? 0), 0, 99.9) / 100;
   const end = clamp(Number(o.trimEnd ?? 100), start + 0.1, 100) / 100;
@@ -272,7 +270,7 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
     const segments = [...o.timelineSegments]
       .filter(x => Number.isFinite(x.sourceStart) && Number.isFinite(x.sourceEnd) && x.sourceEnd > x.sourceStart)
       .sort((a,b) => a.start - b.start);
-    if (!segments.length) throw new Error("The timeline has no valid video segments.");
+    if (!segments.length){await cleanup();throw new Error("The timeline has no valid video segments.");}
     const graph: string[] = [];
     const videoLabels: string[] = [];
     const audioLabels: string[] = [];
@@ -335,7 +333,7 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
       const freezeAt = clip.freezeAt === undefined ? null : clamp(Number(clip.freezeAt),0,100)/100*clipSourceDuration;
       const segmentFilters=[...vf,`scale=${outputWidth}:${outputHeight}:force_original_aspect_ratio=decrease:flags=lanczos`,`pad=${outputWidth}:${outputHeight}:(ow-iw)/2:(oh-ih)/2:color=black`,`setsar=1`,`fps=30`,`format=yuv420p`];
       const timelineStart=clamp(Number(clip.start||0),0,100)/100*sourceDuration;
-      if(timelineStart<timelineCursor-0.08)throw new Error("Overlapping clips need a transition/compositing pass, which is not enabled yet. Move the clips so they do not overlap.");
+      if(timelineStart<timelineCursor-0.08){void cleanup();throw new Error("Overlapping clips need a transition/compositing pass, which is not enabled yet. Move the clips so they do not overlap.");}
       addGap(timelineStart-timelineCursor,index);
       const segmentOutputDuration=(end-start)/speed+freeze;
       const splitFreeze = freeze > 0 && freezeAt !== null && freezeAt > start + 0.04 && freezeAt < end - 0.04;
@@ -442,9 +440,7 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
       new Uint8Array(buffer).set(bytes);
       return new Blob([buffer], { type: "video/mp4" });
     } finally {
-      engine.off("progress", progressListener);
-      for(const path of inputs) await engine.deleteFile(path).catch(() => undefined);
-      await engine.deleteFile(output).catch(() => undefined);
+      await cleanup();
     }
   }
   const reverse = Boolean(o.reverse);
