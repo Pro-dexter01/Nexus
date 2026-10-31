@@ -296,21 +296,60 @@ export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onPr
       const end = clamp(clip.sourceEnd,0,100) / 100 * sourceDuration;
       const speed = clamp(Number(clip.speed || 1),.25,4);
       const freeze = clamp(Number(clip.freezeDuration || 0),0,30);
-      const v = [`trim=start=${start.toFixed(4)}:end=${end.toFixed(4)}`,"setpts=PTS-STARTPTS"];
-      if (clip.reverse) v.push("reverse","setpts=PTS-STARTPTS");
-      if (speed !== 1) v.push(`setpts=PTS/${speed}`);
-      if (vf.length) v.push(...vf);
-      if (freeze > 0) v.push(`tpad=stop_mode=clone:stop_duration=${freeze}`);
-      graph.push(`[0:v:0]${v.join(",")}[vseg${index}]`);
-      videoLabels.push(`[vseg${index}]`);
-      if (hasAudio) {
-        const a = [`atrim=start=${start.toFixed(4)}:end=${end.toFixed(4)}`,"asetpts=PTS-STARTPTS"];
-        if (clip.reverse) a.push("areverse","asetpts=PTS-STARTPTS");
-        if (speed !== 1) a.push(atempoChain(speed));
-        if (freeze > 0) a.push(`apad=pad_dur=${freeze}`);
-        graph.push(`[0:a:0]${a.join(",")}[aseg${index}]`);
-        audioLabels.push(`[aseg${index}]`);
+      const freezeAt = clip.freezeAt === undefined ? null : clamp(Number(clip.freezeAt),0,100)/100*sourceDuration;
+      const splitFreeze = freeze > 0 && freezeAt !== null && freezeAt > start + 0.04 && freezeAt < end - 0.04;
+      if (splitFreeze && freezeAt !== null) {
+        // Freeze is inserted at the selected source frame, not appended to the clip tail.
+        const pieces = clip.reverse
+          ? [{from:freezeAt,to:end,reverse:true},{freeze:true},{from:start,to:freezeAt,reverse:true}]
+          : [{from:start,to:freezeAt,reverse:false},{freeze:true},{from:freezeAt,to:end,reverse:false}];
+        const vparts:string[]=[];
+        const aparts:string[]=[];
+        pieces.forEach((piece,partIndex)=>{
+          const vLabel=`vpart${index}_${partIndex}`;
+          if (piece.freeze) {
+            const still=[`trim=start=${freezeAt.toFixed(4)}:end=${Math.min(end,freezeAt+0.08).toFixed(4)}`,"setpts=PTS-STARTPTS",`tpad=stop_mode=clone:stop_duration=${freeze}`,...vf];
+            graph.push(`[0:v:0]${still.join(",")}[${vLabel}]`);
+          } else {
+            const chain=[`trim=start=${piece.from.toFixed(4)}:end=${piece.to.toFixed(4)}`,"setpts=PTS-STARTPTS"];
+            if(piece.reverse)chain.push("reverse","setpts=PTS-STARTPTS");
+            if(speed!==1)chain.push(`setpts=PTS/${speed}`);
+            chain.push(...vf);
+            graph.push(`[0:v:0]${chain.join(",")}[${vLabel}]`);
+          }
+          vparts.push(`[${vLabel}]`);
+          if(hasAudio){
+            const aLabel=`apart${index}_${partIndex}`;
+            if(piece.freeze){
+              graph.push(`anullsrc=r=48000:cl=stereo,atrim=duration=${freeze},asetpts=PTS-STARTPTS[${aLabel}]`);
+            }else{
+              const chain=[`atrim=start=${piece.from.toFixed(4)}:end=${piece.to.toFixed(4)}`,"asetpts=PTS-STARTPTS","aformat=sample_rates=48000:channel_layouts=stereo"];
+              if(piece.reverse)chain.push("areverse","asetpts=PTS-STARTPTS");
+              if(speed!==1)chain.push(atempoChain(speed));
+              graph.push(`[0:a:0]${chain.join(",")}[${aLabel}]`);
+            }
+            aparts.push(`[${aLabel}]`);
+          }
+        });
+        graph.push(`${vparts.join("")}concat=n=${vparts.length}:v=1:a=0[vseg${index}]`);
+        if(hasAudio)graph.push(`${aparts.join("")}concat=n=${aparts.length}:v=0:a=1[aseg${index}]`);
+      } else {
+        const v = [`trim=start=${start.toFixed(4)}:end=${end.toFixed(4)}`,"setpts=PTS-STARTPTS"];
+        if (clip.reverse) v.push("reverse","setpts=PTS-STARTPTS");
+        if (speed !== 1) v.push(`setpts=PTS/${speed}`);
+        if (vf.length) v.push(...vf);
+        if (freeze > 0) v.push(`tpad=stop_mode=clone:stop_duration=${freeze}`);
+        graph.push(`[0:v:0]${v.join(",")}[vseg${index}]`);
+        if (hasAudio) {
+          const a = [`atrim=start=${start.toFixed(4)}:end=${end.toFixed(4)}`,"asetpts=PTS-STARTPTS"];
+          if (clip.reverse) a.push("areverse","asetpts=PTS-STARTPTS");
+          if (speed !== 1) a.push(atempoChain(speed));
+          if (freeze > 0) a.push(`apad=pad_dur=${freeze}`);
+          graph.push(`[0:a:0]${a.join(",")}[`+ `aseg${index}]`);
+        }
       }
+      videoLabels.push(`[vseg${index}]`);
+      if(hasAudio)audioLabels.push(`[aseg${index}]`);
     });
     graph.push(`${videoLabels.join("")}concat=n=${videoLabels.length}:v=1:a=0[vout]`);
     if (hasAudio) graph.push(`${audioLabels.join("")}concat=n=${audioLabels.length}:v=0:a=1,${audioFilters.join(",")}[aout]`);
