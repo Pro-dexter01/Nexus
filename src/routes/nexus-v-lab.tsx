@@ -328,7 +328,7 @@ export default function NexusVLab() {
   };
   const addManualBeat=()=>{const time=playhead/100*duration;setBeatMarkers(m=>[...m,{id:crypto.randomUUID(),time,strength:"beat" as const,label:"MARK"}].sort((a,b)=>a.time-b.time));};
   const clearBeatMarkers=()=>setBeatMarkers([]);
-  const autoBeatMarkers=()=>{setSubTool("Auto Beat Markers");if(!beatMarkers.length)setError("No strong beat peaks were detected. Add a marker manually or use a music track with clearer transients.");};
+  const autoBeatMarkers=()=>{setSubTool("Auto Beat Markers");setError("Automatic beat detection is not implemented yet. Use + Marker to place beat markers manually.");};
   const deleteClip=()=>{if(!activeClip)return;setClips(c=>{const n=c.filter(x=>x.id!==activeClip);setActiveClip(n[0]?.id??null);return n;});};
   const duplicateClip=()=>{const s=clips.find(c=>c.id===activeClip);if(!s)return;const w=s.end-s.start,start=Math.min(100-w,s.end+1),copy={...s,id:crypto.randomUUID(),start,end:start+w};setClips(c=>[...c,copy].sort((a,b)=>a.start-b.start));setActiveClip(copy.id);};
   const reverseClip=()=>{if(!activeClip)return;setClips(cs=>cs.map(c=>c.id===activeClip?{...c,reverse:!c.reverse}:c));};
