@@ -252,7 +252,7 @@ async function createTextOverlay(text:string,width:number,height:number){
   const fontSize=Math.max(22,Math.round(height*.065));context.font='700 '+fontSize+'px system-ui, sans-serif';
   context.textAlign='center';context.textBaseline='middle';context.lineJoin='round';context.lineWidth=Math.max(3,fontSize*.12);
   const maxWidth=width*.86,lines:string[]=[];let line='';
-  for(const word of text.slice(0,500).split(/\\s+/)){const candidate=line?line+' '+word:word;if(context.measureText(candidate).width>maxWidth&&line){lines.push(line);line=word;}else line=candidate;}
+  for(const word of text.slice(0,500).split(/\s+/)){const candidate=line?line+' '+word:word;if(context.measureText(candidate).width>maxWidth&&line){lines.push(line);line=word;}else line=candidate;}
   if(line)lines.push(line);const lineHeight=fontSize*1.22;const startY=height*.78-((lines.length-1)*lineHeight)/2;
   lines.forEach((value,index)=>{const y=startY+index*lineHeight;context.strokeStyle='rgba(0,0,0,.88)';context.fillStyle='#ffffff';context.strokeText(value,width/2,y,maxWidth);context.fillText(value,width/2,y,maxWidth);});
   const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error('Text overlay image could not be created.')),'image/png'));
