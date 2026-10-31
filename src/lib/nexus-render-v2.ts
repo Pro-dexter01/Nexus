@@ -22,7 +22,7 @@ async function getFFmpeg() {
 }
 
 export type SpeedPoint = { position: number; speed: number };
-export type NexusTimelineSegment = { id: string; start: number; sourceStart: number; sourceEnd: number; inputIndex?: number; sourceDuration?: number; speed?: number; reverse?: boolean; freezeAt?: number; freezeDuration?: number };
+export type NexusTimelineSegment = { id: string; start: number; sourceStart: number; sourceEnd: number; inputIndex?: number; sourceDuration?: number; speed?: number; speedRamp?: SpeedPoint[]; reverse?: boolean; freezeAt?: number; freezeDuration?: number };
 
 export type NexusRenderOptions = {
   trimStart?: number;
@@ -258,6 +258,18 @@ async function createTextOverlay(text:string,width:number,height:number){
   const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error('Text overlay image could not be created.')),'image/png'));
   return blob;
 }
+function normalizeSpeedRamp(points:SpeedPoint[]|undefined){
+  const normalized=(points??[]).filter(p=>Number.isFinite(p.position)&&Number.isFinite(p.speed)).map(p=>({position:clamp(p.position,0,1),speed:clamp(p.speed,.25,4)})).sort((a,b)=>a.position-b.position);
+  if(!normalized.length)return [];
+  if(normalized[0]!.position>0)normalized.unshift({position:0,speed:normalized[0]!.speed});
+  if(normalized[normalized.length-1]!.position<1)normalized.push({position:1,speed:normalized[normalized.length-1]!.speed});
+  return normalized;
+}
+function rampDuration(sourceLength:number,ramp:SpeedPoint[]){
+  if(ramp.length<2)return sourceLength;
+  let duration=0;for(let i=0;i<ramp.length-1;i++){const a=ramp[i],b=ramp[i+1];if(a&&b)duration+=sourceLength*Math.max(0,b.position-a.position)/clamp(a.speed,.25,4);}
+  return duration;
+}
 export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOptions, onProgress?: (p: number) => void) {
   const files = Array.isArray(file) ? file : [file];
   if (!files.length) throw new Error("Import at least one video before rendering.");
@@ -329,7 +341,7 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
     if (compress > 0) audioFilters.push(`acompressor=threshold=${-30+compress*.1}dB:ratio=${(1+compress/12).toFixed(2)}:attack=5:release=80:makeup=1`);
     if (o.normalizeAudio) audioFilters.push("loudnorm=I=-14:TP=-1.5:LRA=11");
     if (o.audioFadeIn) audioFilters.push(`afade=t=in:st=0:d=${clamp(Number(o.audioFadeIn),0,30)}`);
-    const timelineSeconds = Math.max(.1,Number(o.durationSeconds||segments.reduce((total,clip)=>total+((clamp(clip.sourceEnd,0,100)-clamp(clip.sourceStart,0,100))/100*Math.max(.1,Number(clip.sourceDuration||sourceDuration)))/clamp(Number(clip.speed||1),.25,4)+clamp(Number(clip.freezeDuration||0),0,30),0)));
+    const timelineSeconds = Math.max(.1,Number(o.durationSeconds||segments.reduce((total,clip)=>{const length=(clamp(clip.sourceEnd,0,100)-clamp(clip.sourceStart,0,100))/100*Math.max(.1,Number(clip.sourceDuration||sourceDuration));const ramp=normalizeSpeedRamp(clip.speedRamp);return total+(ramp.length>=2&&!clip.reverse&&!clip.freezeDuration?rampDuration(length,ramp):length/clamp(Number(clip.speed||1),.25,4))+clamp(Number(clip.freezeDuration||0),0,30);},0)));
     if (o.audioFadeOut) { const fade = clamp(Number(o.audioFadeOut),0,30); audioFilters.push(`afade=t=out:st=${Math.max(0,timelineSeconds-fade)}:d=${fade}`); }
     let timelineCursor=0;
     const addGap=(gap:number,index:number)=>{
@@ -351,9 +363,23 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
       const timelineStart=clamp(Number(clip.start||0),0,100)/100*sourceDuration;
       if(timelineStart<timelineCursor-0.08){void cleanup();throw new Error("Overlapping clips need a transition/compositing pass, which is not enabled yet. Move the clips so they do not overlap.");}
       addGap(timelineStart-timelineCursor,index);
-      const segmentOutputDuration=(end-start)/speed+freeze;
+      const clipRamp=normalizeSpeedRamp(clip.speedRamp);
+      const useRamp=clipRamp.length>=2&&!clip.reverse&&freeze<=0;
+      const segmentOutputDuration=(useRamp?rampDuration(end-start,clipRamp):(end-start)/speed)+freeze;
       const splitFreeze = freeze > 0 && freezeAt !== null && freezeAt > start + 0.04 && freezeAt < end - 0.04;
-      if (splitFreeze && freezeAt !== null) {
+      if(useRamp){
+        const vparts:string[]=[],aparts:string[]=[];
+        for(let partIndex=0;partIndex<clipRamp.length-1;partIndex++){
+          const a=clipRamp[partIndex],b=clipRamp[partIndex+1];if(!a||!b)continue;
+          const pieceStart=start+(end-start)*a.position,pieceEnd=start+(end-start)*b.position,rate=clamp(a.speed,.25,4);
+          const vLabel=`vramp${index}_${partIndex}`;
+          const chain=[`trim=start=${pieceStart.toFixed(4)}:end=${pieceEnd.toFixed(4)}`,"setpts=PTS-STARTPTS",`setpts=PTS/${rate}`,...segmentFilters];
+          graph.push(`[${inputIndex}:v:0]${chain.join(",")}[${vLabel}]`);vparts.push(`[${vLabel}]`);
+          if(hasAudio){const aLabel=`aramp${index}_${partIndex}`;if(sourceHasAudio){const audio=[`atrim=start=${pieceStart.toFixed(4)}:end=${pieceEnd.toFixed(4)}`,"asetpts=PTS-STARTPTS","aformat=sample_rates=48000:channel_layouts=stereo",atempoChain(rate)];graph.push(`[${inputIndex}:a:0]${audio.join(",")}[${aLabel}]`);}else{const silent=(pieceEnd-pieceStart)/rate;graph.push(`anullsrc=r=48000:cl=stereo,atrim=duration=${silent},asetpts=PTS-STARTPTS[${aLabel}]`);}aparts.push(`[${aLabel}]`);}
+        }
+        graph.push(`${vparts.join("")}concat=n=${vparts.length}:v=1:a=0[vseg${index}]`);
+        if(hasAudio)graph.push(`${aparts.join("")}concat=n=${aparts.length}:v=0:a=1[aseg${index}]`);
+      } else if (splitFreeze && freezeAt !== null) {
         // Freeze is inserted at the selected source frame, not appended to the clip tail.
         const pieces = clip.reverse
           ? [{from:freezeAt,to:end,reverse:true},{freeze:true},{from:start,to:freezeAt,reverse:true}]
