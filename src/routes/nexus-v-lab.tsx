@@ -189,6 +189,7 @@ export default function NexusVLab() {
     if(!next)return;
     if(!next.type.startsWith("video/")){setError("Additional timeline media must be a supported video file.");return;}
     if(next.size>MAX){setError("Each source file must be 650 MB or smaller.");return;}
+    if(mediaAssets.reduce((total,asset)=>total+asset.file.size,0)+next.size>MAX){setError("The combined project media limit is 650 MB to protect browser memory during rendering.");return;}
     if(mediaAssets.some(a=>a.name===next.name&&a.file.size===next.size)){setError("That source is already in the media bin.");return;}
     const d=await readDuration(next),id=crypto.randomUUID(),url=URL.createObjectURL(next);
     setMediaAssets(current=>[...current,{id,name:next.name,file:next,url,duration:d}]);
