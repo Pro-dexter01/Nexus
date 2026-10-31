@@ -23,6 +23,7 @@ async function getFFmpeg() {
 
 export type SpeedPoint = { position: number; speed: number };
 export type NexusTextLayer = { id:string; text:string; start:number; end:number; };
+export type NexusAudioClip = { id:string; inputIndex:number; start:number; duration:number; sourceStart?:number; volume?:number; };
 export type NexusTimelineSegment = { id: string; start: number; sourceStart: number; sourceEnd: number; inputIndex?: number; sourceDuration?: number; speed?: number; speedRamp?: SpeedPoint[]; transitionIn?: {type:string;duration:number}; reverse?: boolean; freezeAt?: number; freezeDuration?: number };
 
 export type NexusRenderOptions = {
@@ -100,6 +101,7 @@ export type NexusRenderOptions = {
   keyframes?: {time:number;value:number;property:string}[];
   text?: string;
   textLayers?: NexusTextLayer[];
+  audioClips?: NexusAudioClip[];
 };
 
 const effectFilters: Record<string, string> = {
@@ -500,7 +502,26 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
     }
     if(motionFilters.length)graph.push("["+videoBase+"]"+motionFilters.join(",")+"[vout]");
     else graph.push("["+videoBase+"]null[vout]");
-    if(hasAudio)graph.push(`${audioChain}${audioFilters.join(",")}[aout]`);
+    if(hasAudio){
+      let mixedAudio=audioChain;
+      const audioClips=(o.audioClips??[]).filter(clip=>Number.isInteger(clip.inputIndex)&&clip.inputIndex>=0&&clip.inputIndex<inputs.length&&Number.isFinite(clip.start)&&Number.isFinite(clip.duration)&&clip.duration>0&&clip.start<timelineSeconds);
+      const mixInputs=[mixedAudio];
+      audioClips.forEach((clip,index)=>{
+        const label=`nxaudio${index}`;
+        const clipStart=clamp(Number(clip.start),0,timelineSeconds);
+        const clipDuration=Math.max(.01,Math.min(Number(clip.duration),timelineSeconds-clipStart));
+        const sourceStart=Math.max(0,Number(clip.sourceStart??0));
+        const clipVolume=clamp(Number(clip.volume??100)/100,0,2);
+        const delay=Math.round(clipStart*1000);
+        graph.push(`[${clip.inputIndex}:a:0]atrim=start=${sourceStart.toFixed(3)}:duration=${clipDuration.toFixed(3)},asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo,volume=${clipVolume.toFixed(3)},adelay=${delay}|${delay}[${label}]`);
+        mixInputs.push(`[${label}]`);
+      });
+      if(audioClips.length){
+        graph.push(`${mixInputs.join("")}amix=inputs=${mixInputs.length}:duration=longest:dropout_transition=0,atrim=duration=${timelineSeconds.toFixed(3)}[amixed]`);
+        mixedAudio="[amixed]";
+      }
+      graph.push(`${mixedAudio}${audioFilters.join(",")}[aout]`);
+    }
     args.push("-filter_complex",graph.join(";"),"-map","[vout]");
     if (hasAudio) args.push("-map","[aout]");
     if (!hasAudio) args.push("-an");
