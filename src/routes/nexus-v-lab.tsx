@@ -301,7 +301,7 @@ export default function NexusVLab() {
       const renderCompression=mode==="enhance"?compression:(exportQuality==="MAXIMUM"?"HIGH_QUALITY":exportQuality==="SMALLER"?"SOCIAL":compression);
       const { renderNexusVideoV2 } = await import("@/lib/nexus-render-v2");
       const blob=await renderNexusVideoV2(file,{
-        timelineSegments:clips.map(c=>({id:c.id,start:c.start,sourceStart:c.sourceStart,sourceEnd:c.sourceEnd,speed:c.speed??speed,reverse:c.reverse??false,freezeDuration:c.freezeDuration??0})),
+        timelineSegments:clips.map(c=>({id:c.id,start:c.start,sourceStart:c.sourceStart,sourceEnd:c.sourceEnd,speed:c.speed??speed,reverse:c.reverse??false,freezeAt:c.freezeAt,freezeDuration:c.freezeDuration??0})),
         trimStart:active?.sourceStart??0,trimEnd:active?.sourceEnd??100,speed:active?.speed??speed,speedRamp:tool==="SPEED"?speedRamp:[],reverse:active?.reverse??false,freezeAt:active?.freezeAt,freezeDuration:active?.freezeDuration,
         volume:currentAnimatedVolume,muted,pan,bass,treble,compress,audioFadeIn,audioFadeOut,normalizeAudio,opacity:currentAnimatedOpacity,blur:currentAnimatedBlur,blendMode,maskType:mask,maskFeather,effect:chromaKey?"CHROMA":effect,effects:effectStack.filter(x=>x.enabled).map(x=>({effect:x.effect,enabled:x.enabled,opacity:x.opacity})),chromaColor,chromaSimilarity,chromaBlend,...adjustment,scale:currentAnimatedScale,scaleX,scaleY,positionX:currentAnimatedPosX,positionY:currentAnimatedPosY,rotation:currentAnimatedRotation,flipX,flipY,skew,upscale:mode==="enhance"?upscale:100,
         targetFps,enhance:mode==="enhance"||enhance,compression:renderCompression,durationSeconds:duration
