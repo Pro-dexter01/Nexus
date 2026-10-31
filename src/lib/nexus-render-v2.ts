@@ -304,8 +304,15 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
     if (compress > 0) audioFilters.push(`acompressor=threshold=${-30+compress*.1}dB:ratio=${(1+compress/12).toFixed(2)}:attack=5:release=80:makeup=1`);
     if (o.normalizeAudio) audioFilters.push("loudnorm=I=-14:TP=-1.5:LRA=11");
     if (o.audioFadeIn) audioFilters.push(`afade=t=in:st=0:d=${clamp(Number(o.audioFadeIn),0,30)}`);
-    const timelineSeconds = segments.reduce((total,clip) => total + ((clamp(clip.sourceEnd,0,100)-clamp(clip.sourceStart,0,100))/100*Math.max(.1,Number(clip.sourceDuration||sourceDuration)))/clamp(Number(clip.speed||1),.25,4) + clamp(Number(clip.freezeDuration||0),0,30),0);
+    const timelineSeconds = Math.max(.1,Number(o.durationSeconds||segments.reduce((total,clip)=>total+((clamp(clip.sourceEnd,0,100)-clamp(clip.sourceStart,0,100))/100*Math.max(.1,Number(clip.sourceDuration||sourceDuration)))/clamp(Number(clip.speed||1),.25,4)+clamp(Number(clip.freezeDuration||0),0,30),0)));
     if (o.audioFadeOut) { const fade = clamp(Number(o.audioFadeOut),0,30); audioFilters.push(`afade=t=out:st=${Math.max(0,timelineSeconds-fade)}:d=${fade}`); }
+    let timelineCursor=0;
+    const addGap=(gap:number,index:number)=>{
+      if(gap<=0.04)return;
+      graph.push(`color=c=black:s=${outputWidth}x${outputHeight}:r=30:d=${gap},format=yuv420p[vgap${index}]`);
+      videoLabels.push(`[vgap${index}]`);
+      if(hasAudio){graph.push(`anullsrc=r=48000:cl=stereo,atrim=duration=${gap},asetpts=PTS-STARTPTS[agap${index}]`);audioLabels.push(`[agap${index}]`);}
+    };
     segments.forEach((clip,index) => {
       const inputIndex=clamp(Math.floor(Number(clip.inputIndex??0)),0,inputs.length-1);
       const clipSourceDuration=Math.max(.1,Number(clip.sourceDuration||sourceDuration));
@@ -316,6 +323,10 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
       const freeze = clamp(Number(clip.freezeDuration || 0),0,30);
       const freezeAt = clip.freezeAt === undefined ? null : clamp(Number(clip.freezeAt),0,100)/100*clipSourceDuration;
       const segmentFilters=[...vf,`scale=${outputWidth}:${outputHeight}:force_original_aspect_ratio=decrease:flags=lanczos`,`pad=${outputWidth}:${outputHeight}:(ow-iw)/2:(oh-ih)/2:color=black`,`setsar=1`,`fps=30`,`format=yuv420p`];
+      const timelineStart=clamp(Number(clip.start||0),0,100)/100*sourceDuration;
+      if(timelineStart<timelineCursor-0.08)throw new Error("Overlapping clips need a transition/compositing pass, which is not enabled yet. Move the clips so they do not overlap.");
+      addGap(timelineStart-timelineCursor,index);
+      const segmentOutputDuration=(end-start)/speed+freeze;
       const splitFreeze = freeze > 0 && freezeAt !== null && freezeAt > start + 0.04 && freezeAt < end - 0.04;
       if (splitFreeze && freezeAt !== null) {
         // Freeze is inserted at the selected source frame, not appended to the clip tail.
@@ -375,7 +386,9 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
       }
       videoLabels.push(`[vseg${index}]`);
       if(hasAudio)audioLabels.push(`[aseg${index}]`);
+      timelineCursor=timelineStart+segmentOutputDuration;
     });
+    addGap(Math.max(0,timelineSeconds-timelineCursor),segments.length);
     graph.push(`${videoLabels.join("")}concat=n=${videoLabels.length}:v=1:a=0[vout]`);
     if (hasAudio) graph.push(`${audioLabels.join("")}concat=n=${audioLabels.length}:v=0:a=1,${audioFilters.join(",")}[aout]`);
     args.push("-filter_complex",graph.join(";"),"-map","[vout]");
