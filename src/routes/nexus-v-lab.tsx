@@ -176,8 +176,41 @@ export default function NexusVLab() {
     const p=await getNexusProject(id); if(p)chooseFile(new File([p.file],p.fileName,{type:p.fileType}));
   };
   const seek=(p:number)=>{
-    const next=Math.max(0,Math.min(100,p));setPlayhead(next);
-    if(videoRef.current&&duration)videoRef.current.currentTime=duration*next/100;
+    const next=Math.max(0,Math.min(100,p));
+    setPlayhead(next);
+    if(output&&videoRef.current&&duration){videoRef.current.currentTime=duration*next/100;return;}
+    const ordered=[...clips].sort((a,b)=>a.start-b.start);
+    const clip=ordered.find(c=>next>=c.start&&next<=c.end)??ordered.reduce<Clip|undefined>((best,c)=>!best||Math.abs(c.start-next)<Math.abs(best.start-next)?c:best,undefined);
+    if(clip){
+      setActiveClip(clip.id);
+      const local=Math.max(0,Math.min(1,(next-clip.start)/Math.max(.001,clip.end-clip.start)));
+      const sourcePct=clip.sourceStart+(clip.sourceEnd-clip.sourceStart)*local;
+      if(videoRef.current&&duration)videoRef.current.currentTime=duration*sourcePct/100;
+    }
+  };
+  const syncPreviewTime=(sourceTime:number)=>{
+    if(output){setPlayhead(duration?sourceTime/duration*100:0);return;}
+    const ordered=[...clips].sort((a,b)=>a.start-b.start);
+    const current=ordered.find(c=>c.id===activeClip)??ordered[0];
+    if(!current||!duration)return;
+    const sourceStart=current.sourceStart/100*duration;
+    const sourceEnd=current.sourceEnd/100*duration;
+    if(sourceTime>=sourceEnd-.04){
+      const index=ordered.findIndex(c=>c.id===current.id);
+      const next=ordered[index+1];
+      if(next&&videoRef.current){
+        setActiveClip(next.id);
+        setPlayhead(next.start);
+        videoRef.current.currentTime=next.sourceStart/100*duration;
+      }else{
+        setPlayhead(current.end);
+        videoRef.current?.pause();
+        setPlaying(false);
+      }
+      return;
+    }
+    const local=Math.max(0,Math.min(1,(sourceTime-sourceStart)/Math.max(.001,sourceEnd-sourceStart)));
+    setPlayhead(current.start+local*(current.end-current.start));
   };
   const split=()=>{
     if(!active)return;
@@ -279,7 +312,7 @@ export default function NexusVLab() {
   };
 
   if(!file)return <Landing projects={projects} onPick={()=>fileRef.current?.click()} onOpen={openProject} fileRef={fileRef} onChoose={chooseFile}/>;
-  return <NexusEditorDashboard p={{file,src,output,videoRef,duration,setDuration,playhead,setPlayhead,seek,playing,setPlaying,muted,setMuted,tool,subTool,setTool,setSubTool,clips,setClips,activeClip,setActiveClip,effect,setEffect:selectEffect,effectStack,updateEffectLayer,removeEffectLayer,speed,setSpeed,speedRamp,updateRamp,volume,setVolume,pan,setPan,bass,setBass,treble,setTreble,adjustment,setAdjustment,resetAdjustments,text,setText,mask,setMask,maskFeather,setMaskFeather,blendMode,setBlendMode,chromaKey,setChromaKey,chromaColor,setChromaColor,scale,setScale,posX,setPosX,posY,setPosY,rotation,setRotation,scaleX,setScaleX,scaleY,setScaleY,opacity,setOpacity,keyframes,addKeyframe,setKeyframes,selectedProperty,setSelectedProperty,waveform,beatMarkers,addManualBeat,autoBeatMarkers,clearBeatMarkers,targetFps,setTargetFps,enhance,setEnhance,compression,setCompression,processing,progress,process,error,setError,split,deleteClip,duplicateClip,cutRange,rippleDelete,trimToPlayhead,reverseClip,freezeFrame,markIn,markOut,rangeStart,rangeEnd,mediaCollapsed,setMediaCollapsed,fileRef,onReplaceFile:chooseFile}}/>;
+  return <NexusEditorDashboard p={{file,src,output,videoRef,duration,setDuration,playhead,setPlayhead,seek,playing,setPlaying,muted,setMuted,tool,subTool,setTool,setSubTool,clips,setClips,activeClip,setActiveClip,effect,setEffect:selectEffect,effectStack,updateEffectLayer,removeEffectLayer,speed,setSpeed,speedRamp,updateRamp,volume,setVolume,pan,setPan,bass,setBass,treble,setTreble,adjustment,setAdjustment,resetAdjustments,text,setText,mask,setMask,maskFeather,setMaskFeather,blendMode,setBlendMode,chromaKey,setChromaKey,chromaColor,setChromaColor,scale,setScale,posX,setPosX,posY,setPosY,rotation,setRotation,scaleX,setScaleX,scaleY,setScaleY,opacity,setOpacity,keyframes,addKeyframe,setKeyframes,selectedProperty,setSelectedProperty,waveform,beatMarkers,addManualBeat,autoBeatMarkers,clearBeatMarkers,targetFps,setTargetFps,enhance,setEnhance,compression,setCompression,processing,progress,process,error,setError,split,deleteClip,duplicateClip,cutRange,rippleDelete,trimToPlayhead,reverseClip,freezeFrame,markIn,markOut,rangeStart,rangeEnd,mediaCollapsed,setMediaCollapsed,fileRef,onReplaceFile:chooseFile,syncPreviewTime}}/>;
 
   const visualStyle={
     opacity:opacity/100,
