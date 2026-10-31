@@ -320,8 +320,21 @@ export default function NexusVLab() {
   const deleteClip=()=>{if(!activeClip)return;setClips(c=>{const n=c.filter(x=>x.id!==activeClip);setActiveClip(n[0]?.id??null);return n;});};
   const duplicateClip=()=>{const s=clips.find(c=>c.id===activeClip);if(!s)return;const w=s.end-s.start,start=Math.min(100-w,s.end+1),copy={...s,id:crypto.randomUUID(),start,end:start+w};setClips(c=>[...c,copy].sort((a,b)=>a.start-b.start));setActiveClip(copy.id);};
   const reverseClip=()=>{if(!activeClip)return;setClips(cs=>cs.map(c=>c.id===activeClip?{...c,reverse:!c.reverse}:c));};
-  const freezeFrame=()=>{if(!active)return;const at=Math.max(0,Math.min(1,(playhead-active.start)/Math.max(.001,active.end-active.start)));const sourceAt=active.sourceStart+at*(active.sourceEnd-active.sourceStart);const existing=active.freezeDuration??0;setClips(cs=>cs.map(c=>c.id===activeClip?{...c,freezeAt:sourceAt,freezeDuration:existing>0?0:1.5}:c));};
-  const setFreezeDuration=(seconds:number)=>{if(!activeClip)return;setClips(cs=>cs.map(c=>c.id===activeClip?{...c,freezeDuration:Math.max(0,seconds)}:c));};
+  const rippleTimelineDuration=(clipId:string,deltaSeconds:number)=>{
+    if(Math.abs(deltaSeconds)<.001)return;
+    const pivot=clips.find(c=>c.id===clipId);if(!pivot)return;
+    const oldDuration=Math.max(.1,duration),nextDuration=Math.max(.1,oldDuration+deltaSeconds);
+    const pivotEnd=pivot.end/100*oldDuration;
+    setClips(current=>current.map(c=>{
+      const startSeconds=c.start/100*oldDuration,endSeconds=c.end/100*oldDuration;
+      if(c.id===clipId)return {...c,start:startSeconds/nextDuration*100,end:(endSeconds+deltaSeconds)/nextDuration*100};
+      if(startSeconds>=pivotEnd-.01)return {...c,start:(startSeconds+deltaSeconds)/nextDuration*100,end:(endSeconds+deltaSeconds)/nextDuration*100};
+      return {...c,start:startSeconds/nextDuration*100,end:endSeconds/nextDuration*100};
+    }));
+    setDuration(nextDuration);
+  };
+  const freezeFrame=()=>{if(!active)return;const at=Math.max(0,Math.min(1,(playhead-active.start)/Math.max(.001,active.end-active.start)));const sourceAt=active.sourceStart+at*(active.sourceEnd-active.sourceStart);const existing=active.freezeDuration??0;const next=existing>0?0:1.5;setClips(cs=>cs.map(c=>c.id===activeClip?{...c,freezeAt:sourceAt,freezeDuration:next}:c));rippleTimelineDuration(active.id,next-existing);};
+  const setFreezeDuration=(seconds:number)=>{if(!active)return;const next=Math.max(0,seconds),existing=active.freezeDuration??0;setClips(cs=>cs.map(c=>c.id===activeClip?{...c,freezeDuration:next}:c));rippleTimelineDuration(active.id,next-existing);};
   const resetAdjustments=()=>setAdjustment({exposure:0,brightness:0,contrast:0,saturation:0,vibrance:0,temperature:0,tint:0,highlights:0,shadows:0,whites:0,blacks:0,clarity:0,texture:0,dehaze:0,sharpness:0,fade:0,vignette:0,grain:0,red:0,green:0,blue:0,structure:0,lift:0,gamma:0,gain:0,midtones:0});
   const addKeyframe=()=>{
     const t=playhead/100*duration;
