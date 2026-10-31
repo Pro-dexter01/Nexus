@@ -19,6 +19,8 @@ type Tool =
   | "STOCK" | "SOUND_FX" | "VOICE" | "ENHANCE";
 type Effect = "NONE" | "GLOW" | "RGB" | "GLITCH" | "SHAKE" | "BLUR" | "CHROMA" | "VIGNETTE" | "GRAIN" | "WARP" | "ZOOM" | "FLASH" | "BLOOM" | "SCAN" | "NOISE" | "PIXEL" | "EDGE" | "INVERT" | "SEPIA" | "THERMAL" | "DREAM" | "TILT";
 type MediaAsset = { id:string; name:string; file:File; url:string; duration:number };
+type AudioAsset = { id:string; name:string; file:File; url:string; duration:number };
+type AudioClip = { id:string; assetId:string; name:string; start:number; duration:number; sourceStart:number; volume:number };
 type Clip = { id: string; mediaId:string; name: string; start: number; end: number; sourceStart: number; sourceEnd: number; color: string; reverse?: boolean; freezeAt?: number; freezeDuration?: number; speed?: number; speedRamp?: SpeedPoint[]; transitionIn?: {type:string;duration:number} };
 type BeatMarker = { id: string; time: number; strength: "strong" | "beat"; label?: string };
 type EffectLayer = { id: string; effect: Effect; enabled: boolean; opacity: number };
@@ -47,6 +49,8 @@ const effectNames: Record<string,string> = { GLOW:"Glow",RGB:"RGB Split",GLITCH:
 export default function NexusVLab() {
   const [file,setFile] = useState<File|null>(null);
   const [mediaAssets,setMediaAssets] = useState<MediaAsset[]>([]);
+  const [audioAssets,setAudioAssets] = useState<AudioAsset[]>([]);
+  const [audioClips,setAudioClips] = useState<AudioClip[]>([]);
   const [src,setSrc] = useState<string|null>(null);
   const [output,setOutput] = useState<string|null>(null);
   const [tool,setTool] = useState<Tool>("EDIT");
@@ -109,6 +113,7 @@ export default function NexusVLab() {
   useEffect(()=>{const update=()=>setIsMobile(window.innerWidth<768);update();window.addEventListener("resize",update);return()=>window.removeEventListener("resize",update)},[]);
   const fileRef = useRef<HTMLInputElement>(null);
   const addFileRef = useRef<HTMLInputElement>(null);
+  const audioFileRef = useRef<HTMLInputElement>(null);
   const pendingSeekRef = useRef<number|null>(null);
   const resumeAfterSourceLoad = useRef(false);
   const freezeTimerRef = useRef<number|null>(null);
@@ -209,6 +214,36 @@ export default function NexusVLab() {
       await addMediaFile(candidate);
     }
   };
+  const addAudioFiles=async(files:File[])=>{
+    let total=audioAssets.reduce((sum,asset)=>sum+asset.file.size,0);
+    for(const candidate of files){
+      if(!candidate.type.startsWith("audio/")){setError("Choose audio files such as MP3, WAV, M4A or AAC.");continue;}
+      if(total+candidate.size>MAX){setError("Audio import stopped at the 650 MB project media limit.");break;}
+      if(audioAssets.some(asset=>asset.name===candidate.name&&asset.file.size===candidate.size)){setError("That audio file is already in the project.");continue;}
+      const probeUrl=URL.createObjectURL(candidate);
+      const duration=await new Promise<number>(resolve=>{
+        const probe=new Audio();probe.preload="metadata";
+        probe.onloadedmetadata=()=>{const value=Number.isFinite(probe.duration)?probe.duration:0;probe.src="";URL.revokeObjectURL(probeUrl);resolve(value);};
+        probe.onerror=()=>{probe.src="";URL.revokeObjectURL(probeUrl);resolve(0);};
+        probe.src=probeUrl;
+      });
+      if(!duration){setError("NEXUS could not read the audio duration for "+candidate.name+".");continue;}
+      const url=URL.createObjectURL(candidate),id=crypto.randomUUID();
+      setAudioAssets(current=>[...current,{id,name:candidate.name,file:candidate,url,duration}]);
+      total+=candidate.size;
+    }
+  };
+  const addAudioClip=(assetId:string)=>{
+    const asset=audioAssets.find(item=>item.id===assetId);if(!asset)return;
+    const start=playhead/100*duration;
+    const available=Math.max(0,duration-start);
+    if(available<0.05){setError("Move the playhead earlier to place audio inside the timeline.");return;}
+    const clipDuration=Math.min(asset.duration,available);
+    setAudioClips(current=>[...current,{id:crypto.randomUUID(),assetId,name:asset.name,start,duration:clipDuration,sourceStart:0,volume:100}]);
+    setTool("AUDIO");setError("");setOutput(null);
+  };
+  const removeAudioClip=(id:string)=>setAudioClips(current=>current.filter(clip=>clip.id!==id));
+  const updateAudioClip=(id:string,patch:Partial<AudioClip>)=>setAudioClips(current=>current.map(clip=>clip.id===id?{...clip,...patch}:clip));
   const addAssetToTimeline=(id:string)=>{
     const asset=mediaAssets.find(a=>a.id===id);if(!asset)return;
     if(clips.some(c=>c.mediaId===id)){setError("This media is already on the timeline.");return;}
@@ -452,9 +487,12 @@ export default function NexusVLab() {
       const renderCompression=mode==="enhance"?compression:(exportQuality==="MAXIMUM"?"HIGH_QUALITY":exportQuality==="SMALLER"?"SOCIAL":compression);
       const { renderNexusVideoV2 } = await import("@/lib/nexus-render-v2");
       const usedAssets=mediaAssets.filter(a=>clips.some(c=>c.mediaId===a.id));
-      const renderFiles=usedAssets.length?usedAssets.map(a=>a.file):[file];
+      const videoRenderFiles=usedAssets.length?usedAssets.map(a=>a.file):[file];
+      const usedAudioAssets=audioAssets.filter(asset=>audioClips.some(clip=>clip.assetId===asset.id));
+      const renderFiles=[...videoRenderFiles,...usedAudioAssets.map(asset=>asset.file)];
       const blob=await renderNexusVideoV2(renderFiles,{
         timelineSegments:clips.map(c=>({id:c.id,start:c.start,sourceStart:c.sourceStart,sourceEnd:c.sourceEnd,inputIndex:Math.max(0,usedAssets.findIndex(a=>a.id===c.mediaId)),sourceDuration:usedAssets.find(a=>a.id===c.mediaId)?.duration??duration,speed:c.speed??speed,speedRamp:c.id===activeClip&&tool==="SPEED"&&!c.reverse&&!(c.freezeDuration??0)?(c.speedRamp??speedRamp):undefined,transitionIn:c.transitionIn,reverse:c.reverse??false,freezeAt:c.freezeAt,freezeDuration:c.freezeDuration??0})),
+        audioClips:audioClips.flatMap(clip=>{const index=usedAudioAssets.findIndex(asset=>asset.id===clip.assetId);return index<0?[]:[{id:clip.id,inputIndex:videoRenderFiles.length+index,start:clip.start,duration:clip.duration,sourceStart:clip.sourceStart,volume:clip.volume}];}),
         trimStart:active?.sourceStart??0,trimEnd:active?.sourceEnd??100,speed:active?.speed??speed,speedRamp:tool==="SPEED"?speedRamp:[],reverse:active?.reverse??false,freezeAt:active?.freezeAt,freezeDuration:active?.freezeDuration,
         volume:currentAnimatedVolume,muted,pan,bass,treble,compress,audioFadeIn,audioFadeOut,normalizeAudio,opacity:currentAnimatedOpacity,blur:currentAnimatedBlur,blendMode,maskType:mask,maskFeather,effect:chromaKey?"CHROMA":effect,effects:effectStack.filter(x=>x.enabled).map(x=>({effect:x.effect,enabled:x.enabled,opacity:x.opacity})),chromaColor,chromaSimilarity,chromaBlend,...adjustment,scale:currentAnimatedScale,scaleX,scaleY,positionX:currentAnimatedPosX,positionY:currentAnimatedPosY,rotation:currentAnimatedRotation,flipX,flipY,skew,upscale:mode==="enhance"?upscale:100,
         targetFps,keyframes,textLayers,enhance:mode==="enhance"||enhance,compression:renderCompression,durationSeconds:duration
@@ -465,7 +503,7 @@ export default function NexusVLab() {
   };
 
   if(!file)return <Landing projects={projects} onPick={()=>fileRef.current?.click()} onOpen={openProject} fileRef={fileRef} onChoose={chooseFile}/>;
-  return <NexusEditorDashboard p={{file,mediaAssets,addMediaFile,addMediaFiles,addAssetToTimeline,onVideoMetadata,animatedScale:currentAnimatedScale,animatedOpacity:currentAnimatedOpacity,animatedBlur:currentAnimatedBlur,animatedRotation:currentAnimatedRotation,animatedPosX:currentAnimatedPosX,animatedPosY:currentAnimatedPosY,animatedVolume:currentAnimatedVolume,src,output,videoRef,duration,setDuration,playhead,setPlayhead,seek,playing,setPlaying,muted,setMuted,tool,subTool,setTool,setSubTool,clips,setClips,activeClip,setActiveClip,effect,setEffect:selectEffect,effectStack,updateEffectLayer,removeEffectLayer,speed,setSpeed,speedRamp,updateRamp,volume,setVolume,pan,setPan,bass,setBass,treble,setTreble,adjustment,setAdjustment,resetAdjustments,text,setText,textLayers,addTextLayer,removeTextLayer,mask,setMask,maskFeather,setMaskFeather,blendMode,setBlendMode,chromaKey,setChromaKey,chromaColor,setChromaColor,scale,setScale,posX,setPosX,posY,setPosY,rotation,setRotation,scaleX,setScaleX,scaleY,setScaleY,opacity,setOpacity,keyframes,addKeyframe,setKeyframes,selectedProperty,setSelectedProperty,waveform,beatMarkers,addManualBeat,autoBeatMarkers,clearBeatMarkers,targetFps,setTargetFps,enhance,setEnhance,compression,setCompression,processing,progress,process,error,setError,split,deleteClip,duplicateClip,cutRange,rippleDelete,trimToPlayhead,reverseClip,freezeFrame,markIn,markOut,rangeStart,rangeEnd,mediaCollapsed,setMediaCollapsed,fileRef,addFileRef,onReplaceFile:chooseFile,onActivateClip:activateClip,applyTransition,syncPreviewTime}}/>;
+  return <NexusEditorDashboard p={{file,mediaAssets,addMediaFile,addMediaFiles,addAssetToTimeline,audioAssets,audioClips,addAudioFiles,addAudioClip,removeAudioClip,updateAudioClip,audioFileRef,onVideoMetadata,animatedScale:currentAnimatedScale,animatedOpacity:currentAnimatedOpacity,animatedBlur:currentAnimatedBlur,animatedRotation:currentAnimatedRotation,animatedPosX:currentAnimatedPosX,animatedPosY:currentAnimatedPosY,animatedVolume:currentAnimatedVolume,src,output,videoRef,duration,setDuration,playhead,setPlayhead,seek,playing,setPlaying,muted,setMuted,tool,subTool,setTool,setSubTool,clips,setClips,activeClip,setActiveClip,effect,setEffect:selectEffect,effectStack,updateEffectLayer,removeEffectLayer,speed,setSpeed,speedRamp,updateRamp,volume,setVolume,pan,setPan,bass,setBass,treble,setTreble,adjustment,setAdjustment,resetAdjustments,text,setText,textLayers,addTextLayer,removeTextLayer,mask,setMask,maskFeather,setMaskFeather,blendMode,setBlendMode,chromaKey,setChromaKey,chromaColor,setChromaColor,scale,setScale,posX,setPosX,posY,setPosY,rotation,setRotation,scaleX,setScaleX,scaleY,setScaleY,opacity,setOpacity,keyframes,addKeyframe,setKeyframes,selectedProperty,setSelectedProperty,waveform,beatMarkers,addManualBeat,autoBeatMarkers,clearBeatMarkers,targetFps,setTargetFps,enhance,setEnhance,compression,setCompression,processing,progress,process,error,setError,split,deleteClip,duplicateClip,cutRange,rippleDelete,trimToPlayhead,reverseClip,freezeFrame,markIn,markOut,rangeStart,rangeEnd,mediaCollapsed,setMediaCollapsed,fileRef,addFileRef,onReplaceFile:chooseFile,onActivateClip:activateClip,applyTransition,syncPreviewTime}}/>;
 
   const visualStyle={
     opacity:opacity/100,
