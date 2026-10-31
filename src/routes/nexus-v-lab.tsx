@@ -19,7 +19,7 @@ type Tool =
   | "STOCK" | "SOUND_FX" | "VOICE" | "ENHANCE";
 type Effect = "NONE" | "GLOW" | "RGB" | "GLITCH" | "SHAKE" | "BLUR" | "CHROMA" | "VIGNETTE" | "GRAIN" | "WARP" | "ZOOM" | "FLASH" | "BLOOM" | "SCAN" | "NOISE" | "PIXEL" | "EDGE" | "INVERT" | "SEPIA" | "THERMAL" | "DREAM" | "TILT";
 type MediaAsset = { id:string; name:string; file:File; url:string; duration:number };
-type Clip = { id: string; mediaId:string; name: string; start: number; end: number; sourceStart: number; sourceEnd: number; color: string; reverse?: boolean; freezeAt?: number; freezeDuration?: number; speed?: number };
+type Clip = { id: string; mediaId:string; name: string; start: number; end: number; sourceStart: number; sourceEnd: number; color: string; reverse?: boolean; freezeAt?: number; freezeDuration?: number; speed?: number; speedRamp?: SpeedPoint[] };
 type BeatMarker = { id: string; time: number; strength: "strong" | "beat"; label?: string };
 type EffectLayer = { id: string; effect: Effect; enabled: boolean; opacity: number };
 
@@ -39,6 +39,7 @@ const advancedTools: { id: Tool; label: string }[] = ([
 ] as const).map(([id,label]) => ({id:id as Tool,label}));
 
 const tools = beginnerTools;
+const defaultSpeedRamp:SpeedPoint[]=[{position:0,speed:1},{position:.25,speed:1},{position:.5,speed:1},{position:.75,speed:1},{position:1,speed:1}];
 
 const effects: Effect[] = ["GLOW","RGB","GLITCH","SHAKE","BLUR","CHROMA","VIGNETTE","GRAIN","WARP","ZOOM","FLASH","BLOOM","SCAN","NOISE","PIXEL","EDGE","INVERT","SEPIA","THERMAL","DREAM","TILT"];
 const effectNames: Record<string,string> = { GLOW:"Glow",RGB:"RGB Split",GLITCH:"Glitch",SHAKE:"Shake",BLUR:"Blur",CHROMA:"Chromatic",VIGNETTE:"Vignette",GRAIN:"Film Grain",WARP:"Warp",ZOOM:"Zoom Punch",FLASH:"Flash",BLOOM:"Bloom",SCAN:"Scanlines",NOISE:"Noise",PIXEL:"Pixelate",EDGE:"Edge",INVERT:"Invert",SEPIA:"Sepia",THERMAL:"Thermal",DREAM:"Dream",TILT:"Tilt Shift" };
@@ -63,7 +64,7 @@ export default function NexusVLab() {
   const [effect,setEffect] = useState<Effect>("NONE");
   const [effectStack,setEffectStack] = useState<EffectLayer[]>([]);
   const [speed,setSpeed] = useState(1);
-  const [speedRamp,setSpeedRamp] = useState<SpeedPoint[]>([{position:0,speed:1},{position:.25,speed:1},{position:.5,speed:1},{position:.75,speed:1},{position:1,speed:1}]);
+  const [speedRamp,setSpeedRamp] = useState<SpeedPoint[]>(defaultSpeedRamp);
   const [volume,setVolume] = useState(100);
   const [pan,setPan] = useState(0); const [bass,setBass] = useState(0); const [treble,setTreble] = useState(0); const [compress,setCompress] = useState(0); const [audioFadeIn,setAudioFadeIn] = useState(0); const [audioFadeOut,setAudioFadeOut] = useState(0); const [normalizeAudio,setNormalizeAudio] = useState(false);
   const [adjustment,setAdjustment] = useState({exposure:0,brightness:0,contrast:0,saturation:0,vibrance:0,temperature:0,tint:0,highlights:0,shadows:0,whites:0,blacks:0,clarity:0,texture:0,dehaze:0,sharpness:0,fade:0,vignette:0,grain:0,red:0,green:0,blue:0,structure:0,lift:0,gamma:0,gain:0,midtones:0});
@@ -206,14 +207,15 @@ export default function NexusVLab() {
   const activateClip=(clip:Clip)=>{
     clearFreezeHold();
     const asset=mediaAssets.find(a=>a.id===clip.mediaId);if(!asset)return;
-    setActiveClip(clip.id);setFile(asset.file);if(videoRef.current)videoRef.current.playbackRate=playbackRateFor(clip,clip.sourceStart/100*asset.duration);
+    setActiveClip(clip.id);setSpeedRamp(clip.speedRamp??defaultSpeedRamp);setFile(asset.file);if(videoRef.current)videoRef.current.playbackRate=playbackRateFor(clip,clip.sourceStart/100*asset.duration);
     if(src!==asset.url){pendingSeekRef.current=clip.sourceStart/100*asset.duration;resumeAfterSourceLoad.current=playing;setSrc(asset.url);}
     else if(videoRef.current)videoRef.current.currentTime=clip.sourceStart/100*asset.duration;
   };
   const playbackRateFor=(clip:Clip,sourceTime:number)=>{
-    if(tool==="SPEED"&&clip.id===activeClip&&speedRamp.length>=2){
+    const clipRamp=clip.speedRamp??speedRamp;
+    if(tool==="SPEED"&&clipRamp.length>=2){
       const asset=mediaAssets.find(a=>a.id===clip.mediaId);
-      if(asset){const local=Math.max(0,Math.min(1,(sourceTime-clip.sourceStart/100*asset.duration)/Math.max(.001,(clip.sourceEnd-clip.sourceStart)/100*asset.duration)));const points=[...speedRamp].sort((a,b)=>a.position-b.position);for(let i=0;i<points.length-1;i++){const a=points[i],b=points[i+1];if(a&&b&&local<=b.position)return Math.max(.25,Math.min(4,a.speed));}return Math.max(.25,Math.min(4,points[points.length-1]?.speed??1));}
+      if(asset){const local=Math.max(0,Math.min(1,(sourceTime-clip.sourceStart/100*asset.duration)/Math.max(.001,(clip.sourceEnd-clip.sourceStart)/100*asset.duration)));const points=[...clipRamp].sort((a,b)=>a.position-b.position);for(let i=0;i<points.length-1;i++){const a=points[i],b=points[i+1];if(a&&b&&local<=b.position)return Math.max(.25,Math.min(4,a.speed));}return Math.max(.25,Math.min(4,points[points.length-1]?.speed??1));}
     }
     return Math.max(.25,Math.min(4,clip.speed??speed));
   };
@@ -372,7 +374,7 @@ export default function NexusVLab() {
   const updateRamp=(index:number,patch:Partial<SpeedPoint>)=>{
     const next=speedRamp.map((point,i)=>i===index?{...point,...patch}:point);
     const clip=clips.find(c=>c.id===activeClip),asset=clip?mediaAssets.find(a=>a.id===clip.mediaId):undefined;
-    if(tool==="SPEED"&&clip&&asset){const sourceLength=(clip.sourceEnd-clip.sourceStart)/100*asset.duration;const delta=rampDurationFor(next,sourceLength)-rampDurationFor(speedRamp,sourceLength);rippleTimelineDuration(clip.id,delta);}
+    if(tool==="SPEED"&&clip&&asset){const previous=clip.speedRamp??speedRamp;const sourceLength=(clip.sourceEnd-clip.sourceStart)/100*asset.duration;const delta=rampDurationFor(next,sourceLength)-rampDurationFor(previous,sourceLength);rippleTimelineDuration(clip.id,delta);setClips(current=>current.map(c=>c.id===clip.id?{...c,speedRamp:next}:c));}
     setSpeedRamp(next);
   };
   const selectEffect=(next:Effect)=>{setEffect(next);if(next!=="NONE")setEffectStack(current=>current.some(x=>x.effect===next)?current:[...current,{id:crypto.randomUUID(),effect:next,enabled:true,opacity:100}]);};
@@ -388,7 +390,7 @@ export default function NexusVLab() {
       const usedAssets=mediaAssets.filter(a=>clips.some(c=>c.mediaId===a.id));
       const renderFiles=usedAssets.length?usedAssets.map(a=>a.file):[file];
       const blob=await renderNexusVideoV2(renderFiles,{
-        timelineSegments:clips.map(c=>({id:c.id,start:c.start,sourceStart:c.sourceStart,sourceEnd:c.sourceEnd,inputIndex:Math.max(0,usedAssets.findIndex(a=>a.id===c.mediaId)),sourceDuration:usedAssets.find(a=>a.id===c.mediaId)?.duration??duration,speed:c.speed??speed,speedRamp:c.id===activeClip&&tool==="SPEED"?speedRamp:undefined,reverse:c.reverse??false,freezeAt:c.freezeAt,freezeDuration:c.freezeDuration??0})),
+        timelineSegments:clips.map(c=>({id:c.id,start:c.start,sourceStart:c.sourceStart,sourceEnd:c.sourceEnd,inputIndex:Math.max(0,usedAssets.findIndex(a=>a.id===c.mediaId)),sourceDuration:usedAssets.find(a=>a.id===c.mediaId)?.duration??duration,speed:c.speed??speed,speedRamp:c.id===activeClip&&tool==="SPEED"?(c.speedRamp??speedRamp):undefined,reverse:c.reverse??false,freezeAt:c.freezeAt,freezeDuration:c.freezeDuration??0})),
         trimStart:active?.sourceStart??0,trimEnd:active?.sourceEnd??100,speed:active?.speed??speed,speedRamp:tool==="SPEED"?speedRamp:[],reverse:active?.reverse??false,freezeAt:active?.freezeAt,freezeDuration:active?.freezeDuration,
         volume:currentAnimatedVolume,muted,pan,bass,treble,compress,audioFadeIn,audioFadeOut,normalizeAudio,opacity:currentAnimatedOpacity,blur:currentAnimatedBlur,blendMode,maskType:mask,maskFeather,effect:chromaKey?"CHROMA":effect,effects:effectStack.filter(x=>x.enabled).map(x=>({effect:x.effect,enabled:x.enabled,opacity:x.opacity})),chromaColor,chromaSimilarity,chromaBlend,...adjustment,scale:currentAnimatedScale,scaleX,scaleY,positionX:currentAnimatedPosX,positionY:currentAnimatedPosY,rotation:currentAnimatedRotation,flipX,flipY,skew,upscale:mode==="enhance"?upscale:100,
         targetFps,keyframes,text,enhance:mode==="enhance"||enhance,compression:renderCompression,durationSeconds:duration
