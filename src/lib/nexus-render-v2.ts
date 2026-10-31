@@ -22,6 +22,7 @@ async function getFFmpeg() {
 }
 
 export type SpeedPoint = { position: number; speed: number };
+export type NexusTextLayer = { id:string; text:string; start:number; end:number; };
 export type NexusTimelineSegment = { id: string; start: number; sourceStart: number; sourceEnd: number; inputIndex?: number; sourceDuration?: number; speed?: number; speedRamp?: SpeedPoint[]; transitionIn?: {type:string;duration:number}; reverse?: boolean; freezeAt?: number; freezeDuration?: number };
 
 export type NexusRenderOptions = {
@@ -98,6 +99,7 @@ export type NexusRenderOptions = {
   timelineSegments?: NexusTimelineSegment[];
   keyframes?: {time:number;value:number;property:string}[];
   text?: string;
+  textLayers?: NexusTextLayer[];
 };
 
 const effectFilters: Record<string, string> = {
@@ -280,9 +282,10 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
   const output = `nexus-v2-out-${stamp}.mp4`;
   const textOverlayPath=`nexus-v2-text-${stamp}.png`;
   let hasTextOverlay=false;
+  const textLayerPaths:string[]=[];
   const progressListener = ({ progress }: { progress: number }) => onProgress?.(clamp(progress, 0, 1));
   engine.on("progress", progressListener);
-  const cleanup=async()=>{engine.off("progress",progressListener);for(const path of inputs)await engine.deleteFile(path).catch(()=>undefined);await engine.deleteFile(textOverlayPath).catch(()=>undefined);await engine.deleteFile(output).catch(()=>undefined);};
+  const cleanup=async()=>{engine.off("progress",progressListener);for(const path of inputs)await engine.deleteFile(path).catch(()=>undefined);await engine.deleteFile(textOverlayPath).catch(()=>undefined);for(const path of textLayerPaths)await engine.deleteFile(path).catch(()=>undefined);await engine.deleteFile(output).catch(()=>undefined);};
   try{for(let i=0;i<files.length;i++){const source=files[i],path=inputs[i];if(source&&path)await engine.writeFile(path,await fetchFile(source));}}catch(error){await cleanup();throw error;}
 
   const start = clamp(Number(o.trimStart ?? 0), 0, 99.9) / 100;
@@ -310,6 +313,14 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
       if(match){outputWidth=Math.max(2,Math.min(1920,Math.floor(Number(match[1])/2)*2));outputHeight=Math.max(2,Math.min(1920,Math.floor(Number(match[2])/2)*2));}
     }catch{/* use a safe 720p canvas when source metadata is unavailable */}
     if(o.text?.trim()){const overlay=await createTextOverlay(o.text,outputWidth,outputHeight);await engine.writeFile(textOverlayPath,await fetchFile(overlay));hasTextOverlay=true;args.push("-loop","1","-i",textOverlayPath);}
+    const textLayers=(o.textLayers??[]).filter(layer=>layer.text.trim()&&Number.isFinite(layer.start)&&Number.isFinite(layer.end)&&layer.end>layer.start).sort((a,b)=>a.start-b.start);
+    for(let layerIndex=0;layerIndex<textLayers.length;layerIndex++){
+      const layer=textLayers[layerIndex];if(!layer)continue;
+      const layerPath="nexus-v2-title-"+stamp+"-"+layerIndex+".png";
+      const overlay=await createTextOverlay(layer.text,outputWidth,outputHeight);
+      await engine.writeFile(layerPath,await fetchFile(overlay));textLayerPaths.push(layerPath);
+      args.push("-loop","1","-i",layerPath);
+    }
     const hasAudioSources:boolean[]=[];
     for(const input of inputs){
       const probeLog:string[]=[];
@@ -454,8 +465,22 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
       videoChain=`[${videoLabel}]`;
       if(hasAudio&&piece.audio){const audioLabel=`achain${pieceIndex}`;if(piece.transitionDuration>0)graph.push(`${audioChain}${piece.audio}acrossfade=d=${piece.transitionDuration}:c1=tri:c2=tri[${audioLabel}]`);else graph.push(`${audioChain}${piece.audio}concat=n=2:v=0:a=1[${audioLabel}]`);audioChain=`[${audioLabel}]`; }
     }
-    const videoBase=hasTextOverlay?"vtext":videoChain.slice(1,-1);
-    if(hasTextOverlay)graph.push(`${videoChain}[${inputs.length}:v:0]overlay=x=(W-w)/2:y=H*0.42-h/2:shortest=1:format=auto[vtext]`);
+    let compositedVideo=videoChain;
+    let overlayInputIndex=inputs.length;
+    if(hasTextOverlay){
+      graph.push(compositedVideo+"["+overlayInputIndex+":v:0]overlay=x=(W-w)/2:y=H*0.42-h/2:shortest=1:format=auto[vtext]");
+      compositedVideo="[vtext]";overlayInputIndex++;
+    }
+    for(let layerIndex=0;layerIndex<textLayers.length;layerIndex++){
+      const layer=textLayers[layerIndex];if(!layer)continue;
+      const nextLabel="vtitle"+layerIndex;
+      const layerStart=clamp(Number(layer.start),0,timelineSeconds),layerEnd=clamp(Number(layer.end),layerStart,timelineSeconds);
+      if(layerEnd<=layerStart)continue;
+      const enable="between(t\\,"+layerStart.toFixed(3)+"\\,"+layerEnd.toFixed(3)+")";
+      graph.push(compositedVideo+"["+overlayInputIndex+":v:0]overlay=x=(W-w)/2:y=H*0.42-h/2:shortest=1:format=auto:enable="+enable+"["+nextLabel+"]");
+      compositedVideo="["+nextLabel+"]";overlayInputIndex++;
+    }
+    const videoBase=compositedVideo.slice(1,-1);
     const motionFilters:string[]=[];
     const keyframes=o.keyframes??[];
     const hasKF=(property:string)=>keyframes.some(point=>point.property===property);
