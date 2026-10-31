@@ -119,6 +119,7 @@ export default function NexusVLab() {
   const freezeTimerRef = useRef<number|null>(null);
   const freezeActiveRef = useRef(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioPreviewRef = useRef<Map<string,HTMLAudioElement>>(new Map());
   const timelineRef = useRef<HTMLDivElement>(null);
   const draggingPlayhead = useRef(false);
 
@@ -138,6 +139,25 @@ export default function NexusVLab() {
     // decoder for large local files during import.
     setSceneThumbs([]);
   },[src]);
+  useEffect(()=>{
+    const players=audioPreviewRef.current;
+    const liveIds=new Set(audioClips.map(clip=>clip.id));
+    for(const [id,player] of players){if(!liveIds.has(id)){player.pause();player.src="";players.delete(id);}}
+    const timelineTime=playhead/100*duration;
+    for(const clip of audioClips){
+      const asset=audioAssets.find(item=>item.id===clip.assetId);if(!asset)continue;
+      let player=players.get(clip.id);
+      if(!player){player=new Audio(asset.url);player.preload="auto";players.set(clip.id,player);}
+      player.volume=Math.max(0,Math.min(1,clip.volume/100));
+      const active=!output&&playing&&timelineTime>=clip.start&&timelineTime<clip.start+clip.duration;
+      if(active){
+        const wanted=clip.sourceStart+Math.max(0,timelineTime-clip.start);
+        if(Math.abs(player.currentTime-wanted)>.3){try{player.currentTime=wanted;}catch{/* wait for metadata */}}
+        if(player.paused)void player.play().catch(()=>undefined);
+      }else if(!player.paused)player.pause();
+    }
+  },[audioClips,audioAssets,playhead,duration,playing,output]);
+  useEffect(()=>()=>{for(const player of audioPreviewRef.current.values()){player.pause();player.src="";}audioPreviewRef.current.clear();},[]);
   useEffect(()=>{
     const move=(e:PointerEvent)=>{
       if(!draggingPlayhead.current || !timelineRef.current) return;
