@@ -365,12 +365,12 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
       const overlap=Math.max(0,timelineCursor-timelineStart);
       const transition=clip.transitionIn;
       if(overlap>0.08&&!transition){void cleanup();throw new Error("Overlapping clips need a transition. Apply a transition preset or move the clips apart.");}
-      if(transition&&Math.abs(overlap-clamp(Number(transition.duration),.05,3))>.12){void cleanup();throw new Error("The transition overlap and transition duration do not match. Reapply the transition preset.");}
-      const transitionDuration=transition?clamp(Number(transition.duration),.05,Math.min(3,Math.max(.06,segmentOutputDuration-.05))):0;
       if(timelineStart>timelineCursor)addGap(timelineStart-timelineCursor,index);
       const clipRamp=normalizeSpeedRamp(clip.speedRamp);
       const useRamp=clipRamp.length>=2&&!clip.reverse&&freeze<=0;
       const segmentOutputDuration=(useRamp?rampDuration(end-start,clipRamp):(end-start)/speed)+freeze;
+      const transitionDuration=transition?clamp(Number(transition.duration),.05,Math.min(3,Math.max(.06,segmentOutputDuration-.05))):0;
+      if(transition&&Math.abs(overlap-transitionDuration)>.12){void cleanup();throw new Error("The transition overlap and transition duration do not match. Reapply the transition preset.");}
       const splitFreeze = freeze > 0 && freezeAt !== null && freezeAt > start + 0.04 && freezeAt < end - 0.04;
       if(useRamp){
         const vparts:string[]=[],aparts:string[]=[];
