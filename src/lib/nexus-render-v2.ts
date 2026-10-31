@@ -299,8 +299,7 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
       .sort((a,b) => a.start - b.start);
     if (!segments.length){await cleanup();throw new Error("The timeline has no valid video segments.");}
     const graph: string[] = [];
-    const videoLabels: string[] = [];
-    const audioLabels: string[] = [];
+    const timelinePieces:{video:string;audio?:string;start:number;duration:number;transitionDuration:number;transitionType:string}[]=[];
     let outputWidth=1280,outputHeight=720;
     try{
       const dimensions:string[]=[];
