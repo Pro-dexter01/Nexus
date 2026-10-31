@@ -46,8 +46,6 @@ const effectNames: Record<string,string> = { GLOW:"Glow",RGB:"RGB Split",GLITCH:
 export default function NexusVLab() {
   const [file,setFile] = useState<File|null>(null);
   const [mediaAssets,setMediaAssets] = useState<MediaAsset[]>([]);
-  const [pendingSourceSeek,setPendingSourceSeek] = useState<number|null>(null);
-  const [addMediaRef] = useState(()=>({current:null as HTMLInputElement|null}));
   const [src,setSrc] = useState<string|null>(null);
   const [output,setOutput] = useState<string|null>(null);
   const [tool,setTool] = useState<Tool>("EDIT");
@@ -137,7 +135,7 @@ export default function NexusVLab() {
       const r=timelineRef.current.getBoundingClientRect();
       const p=Math.max(0,Math.min(100,((e.clientX-r.left)/r.width)*100));
       setPlayhead(p);
-      if(videoRef.current && duration) videoRef.current.currentTime=duration*p/100;
+      seek(p);
     };
     const up=()=>{draggingPlayhead.current=false;};
     window.addEventListener("pointermove",move); window.addEventListener("pointerup",up);
@@ -190,18 +188,18 @@ export default function NexusVLab() {
     if(!next.type.startsWith("video/")){setError("Additional timeline media must be a supported video file.");return;}
     if(next.size>MAX){setError("Each source file must be 650 MB or smaller.");return;}
     if(mediaAssets.some(a=>a.name===next.name&&a.file.size===next.size)){setError("That source is already in the media bin.");return;}
-    const d=await readDuration(next),id=crypto.randomUUID(),url=URL.createObjectURL(next);
+    const d=await readDuration(next),id=crypto.randomUUID(),url=URL.createObjectURL(next),clipId=crypto.randomUUID();
     const previousDuration=Math.max(.1,duration),nextDuration=previousDuration+d,ratio=previousDuration/nextDuration;
-    setClips(current=>[...current.map(c=>({...c,start:c.start*ratio,end:c.end*ratio})),{id:crypto.randomUUID(),mediaId:id,name:next.name,start:ratio*100,end:100,sourceStart:0,sourceEnd:100,color:"#638a9a"}]);
+    setClips(current=>[...current.map(c=>({...c,start:c.start*ratio,end:c.end*ratio})),{id:clipId,mediaId:id,name:next.name,start:ratio*100,end:100,sourceStart:0,sourceEnd:100,color:"#638a9a"}]);
     setMediaAssets(current=>[...current,{id,name:next.name,file:next,url,duration:d}]);
-    setDuration(nextDuration);setFile(next);setSrc(url);setActiveClip(null);setPlayhead(ratio*100);setOutput(null);setError("");
+    setDuration(nextDuration);setFile(next);pendingSeekRef.current=0;resumeAfterSourceLoad.current=false;setSrc(url);setActiveClip(clipId);setPlayhead(ratio*100);setOutput(null);setError("");
   };
   const addAssetToTimeline=(id:string)=>{
     const asset=mediaAssets.find(a=>a.id===id);if(!asset)return;
     if(clips.some(c=>c.mediaId===id)){setError("This media is already on the timeline.");return;}
-    const previousDuration=Math.max(.1,duration),nextDuration=previousDuration+asset.duration,ratio=previousDuration/nextDuration;
-    setClips(current=>[...current.map(c=>({...c,start:c.start*ratio,end:c.end*ratio})),{id:crypto.randomUUID(),mediaId:id,name:asset.name,start:ratio*100,end:100,sourceStart:0,sourceEnd:100,color:"#638a9a"}]);
-    setDuration(nextDuration);setFile(asset.file);setSrc(asset.url);setPlayhead(ratio*100);setOutput(null);setError("");
+    const previousDuration=Math.max(.1,duration),nextDuration=previousDuration+asset.duration,ratio=previousDuration/nextDuration,clipId=crypto.randomUUID();
+    setClips(current=>[...current.map(c=>({...c,start:c.start*ratio,end:c.end*ratio})),{id:clipId,mediaId:id,name:asset.name,start:ratio*100,end:100,sourceStart:0,sourceEnd:100,color:"#638a9a"}]);
+    setDuration(nextDuration);setFile(asset.file);pendingSeekRef.current=0;resumeAfterSourceLoad.current=false;setSrc(asset.url);setActiveClip(clipId);setPlayhead(ratio*100);setOutput(null);setError("");
   };
   const activateClip=(clip:Clip)=>{
     const asset=mediaAssets.find(a=>a.id===clip.mediaId);if(!asset)return;
