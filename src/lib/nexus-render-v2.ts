@@ -96,6 +96,7 @@ export type NexusRenderOptions = {
   freezeAt?: number;
   freezeDuration?: number;
   timelineSegments?: NexusTimelineSegment[];
+  keyframes?: {time:number;value:number;property:string}[];
 };
 
 const effectFilters: Record<string, string> = {
@@ -135,6 +136,14 @@ function atempoChain(speed: number) {
   return filters.join(",");
 }
 
+function keyframeExpression(points:{time:number;value:number;property:string}[],property:string,fallback:number,min:number,max:number){
+ const pts=points.filter(p=>p.property===property).sort((a,b)=>a.time-b.time).map(p=>({time:Math.max(0,p.time),value:clamp(p.value,min,max)}));
+ if(!pts.length)return String(clamp(fallback,min,max));
+ const first=pts[0],last=pts[pts.length-1];if(!first||!last)return String(clamp(fallback,min,max));
+ let expression=String(last.value);
+ for(let i=pts.length-2;i>=0;i--){const a=pts[i],b=pts[i+1];if(!a||!b)continue;const span=Math.max(.001,b.time-a.time);const linear='('+a.value+'+('+(b.value-a.value)+')*(t-'+a.time+')/'+span+')';expression='if(lt(t\\,'+b.time+')\\,'+linear+'\\,'+expression+')';}
+ return 'if(lt(t\\,'+first.time+')\\,'+first.value+'\\,'+expression+')';
+}
 function buildVisualFilters(o: NexusRenderOptions) {
   const filters: string[] = [];
   const exposure = Number(o.exposure || 0);
