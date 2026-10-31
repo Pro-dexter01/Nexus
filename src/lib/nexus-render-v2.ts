@@ -97,6 +97,7 @@ export type NexusRenderOptions = {
   freezeDuration?: number;
   timelineSegments?: NexusTimelineSegment[];
   keyframes?: {time:number;value:number;property:string}[];
+  text?: string;
 };
 
 const effectFilters: Record<string, string> = {
@@ -245,6 +246,18 @@ function buildVisualFilters(o: NexusRenderOptions) {
   return filters;
 }
 
+async function createTextOverlay(text:string,width:number,height:number){
+  const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
+  const context=canvas.getContext('2d');if(!context)throw new Error('Text overlay could not be initialized.');
+  const fontSize=Math.max(22,Math.round(height*.065));context.font='700 '+fontSize+'px system-ui, sans-serif';
+  context.textAlign='center';context.textBaseline='middle';context.lineJoin='round';context.lineWidth=Math.max(3,fontSize*.12);
+  const maxWidth=width*.86,lines:string[]=[];let line='';
+  for(const word of text.slice(0,500).split(/\\s+/)){const candidate=line?line+' '+word:word;if(context.measureText(candidate).width>maxWidth&&line){lines.push(line);line=word;}else line=candidate;}
+  if(line)lines.push(line);const lineHeight=fontSize*1.22;const startY=height*.78-((lines.length-1)*lineHeight)/2;
+  lines.forEach((value,index)=>{const y=startY+index*lineHeight;context.strokeStyle='rgba(0,0,0,.88)';context.fillStyle='#ffffff';context.strokeText(value,width/2,y,maxWidth);context.fillText(value,width/2,y,maxWidth);});
+  const blob=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error('Text overlay image could not be created.')),'image/png'));
+  return blob;
+}
 export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOptions, onProgress?: (p: number) => void) {
   const files = Array.isArray(file) ? file : [file];
   if (!files.length) throw new Error("Import at least one video before rendering.");
@@ -253,9 +266,11 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
   const inputs = files.map((f,i)=>`nexus-v2-in-${stamp}-${i}.${f.name.split(".").pop() || "mp4"}`);
   const input = inputs[0] ?? `nexus-v2-in-${stamp}.mp4`;
   const output = `nexus-v2-out-${stamp}.mp4`;
+  const textOverlayPath=`nexus-v2-text-${stamp}.png`;
+  let hasTextOverlay=false;
   const progressListener = ({ progress }: { progress: number }) => onProgress?.(clamp(progress, 0, 1));
   engine.on("progress", progressListener);
-  const cleanup=async()=>{engine.off("progress",progressListener);for(const path of inputs)await engine.deleteFile(path).catch(()=>undefined);await engine.deleteFile(output).catch(()=>undefined);};
+  const cleanup=async()=>{engine.off("progress",progressListener);for(const path of inputs)await engine.deleteFile(path).catch(()=>undefined);if(hasTextOverlay)await engine.deleteFile(textOverlayPath).catch(()=>undefined);await engine.deleteFile(output).catch(()=>undefined);};
   try{for(let i=0;i<files.length;i++){const source=files[i],path=inputs[i];if(source&&path)await engine.writeFile(path,await fetchFile(source));}}catch(error){await cleanup();throw error;}
 
   const start = clamp(Number(o.trimStart ?? 0), 0, 99.9) / 100;
@@ -283,6 +298,7 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
       const match=dimensions.join(" ").match(/(\d+)[x,](\d+)/);
       if(match){outputWidth=Math.max(2,Math.min(1920,Math.floor(Number(match[1])/2)*2));outputHeight=Math.max(2,Math.min(1920,Math.floor(Number(match[2])/2)*2));}
     }catch{/* use a safe 720p canvas when source metadata is unavailable */}
+    if(o.text?.trim()){const overlay=await createTextOverlay(o.text,outputWidth,outputHeight);await engine.writeFile(textOverlayPath,await fetchFile(overlay));hasTextOverlay=true;args.push("-loop","1","-i",textOverlayPath);}
     const hasAudioSources:boolean[]=[];
     for(const input of inputs){
       const probeLog:string[]=[];
@@ -399,6 +415,8 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
     });
     addGap(Math.max(0,timelineSeconds-timelineCursor),segments.length);
     graph.push(`${videoLabels.join("")}concat=n=${videoLabels.length}:v=1:a=0[vconcat]`);
+    const videoBase=hasTextOverlay? "vtext":"vconcat";
+    if(hasTextOverlay)graph.push(`[vconcat][${inputs.length}:v:0]overlay=x=(W-w)/2:y=H-h-48:shortest=1:format=auto[vtext]`);
     const motionFilters:string[]=[];
     const keyframes=o.keyframes??[];
     const hasKF=(property:string)=>keyframes.some(point=>point.property===property);
@@ -416,8 +434,8 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
       const alpha=keyframeExpression(keyframes,'opacity',Number(o.opacity??100),0,100);
       motionFilters.push('format=rgb24,geq=r=\'r(X,Y)*('+alpha+'/100)\':g=\'g(X,Y)*('+alpha+'/100)\':b=\'b(X,Y)*('+alpha+'/100)\',format=yuv420p');
     }
-    if(motionFilters.length)graph.push("[vconcat]"+motionFilters.join(",")+"[vout]");
-    else graph.push("[vconcat]null[vout]");
+    if(motionFilters.length)graph.push("["+videoBase+"]"+motionFilters.join(",")+"[vout]");
+    else graph.push("["+videoBase+"]null[vout]");
     if (hasAudio) graph.push(`${audioLabels.join("")}concat=n=${audioLabels.length}:v=0:a=1,${audioFilters.join(",")}[aout]`);
     args.push("-filter_complex",graph.join(";"),"-map","[vout]");
     if (hasAudio) args.push("-map","[aout]");
