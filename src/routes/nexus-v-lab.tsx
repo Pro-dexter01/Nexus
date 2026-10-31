@@ -263,7 +263,16 @@ export default function NexusVLab() {
     setTool("AUDIO");setError("");setOutput(null);
   };
   const removeAudioClip=(id:string)=>setAudioClips(current=>current.filter(clip=>clip.id!==id));
-  const updateAudioClip=(id:string,patch:Partial<AudioClip>)=>setAudioClips(current=>current.map(clip=>clip.id===id?{...clip,...patch}:clip));
+  const updateAudioClip=(id:string,patch:Partial<AudioClip>)=>setAudioClips(current=>current.map(clip=>{
+    if(clip.id!==id)return clip;
+    const asset=audioAssets.find(item=>item.id===clip.assetId);
+    const next={...clip,...patch};
+    next.start=Math.max(0,Math.min(Math.max(0,duration-.05),next.start));
+    next.sourceStart=Math.max(0,Math.min(Math.max(0,(asset?.duration??next.sourceStart)-.05),next.sourceStart));
+    next.duration=Math.max(.05,Math.min(next.duration,Math.max(.05,duration-next.start),Math.max(.05,(asset?.duration??next.sourceStart)-next.sourceStart)));
+    next.volume=Math.max(0,Math.min(200,next.volume));
+    return next;
+  }));
   const addAssetToTimeline=(id:string)=>{
     const asset=mediaAssets.find(a=>a.id===id);if(!asset)return;
     if(clips.some(c=>c.mediaId===id)){setError("This media is already on the timeline.");return;}
