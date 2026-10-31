@@ -362,7 +362,7 @@ export default function NexusVLab() {
     const overlap=Math.max(0,previousEnd-activeStart),gap=Math.max(0,activeStart-previousEnd);
     if(gap>.12){setError("Move this clip directly after the previous clip before applying a transition.");return;}
     const clipLength=(active.end-active.start)/100*oldDuration;
-    const transitionDuration=existing?.duration??Math.min(.5,Math.max(.1,clipLength*.45),Math.max(.1,previousEnd*.45));
+    const previousLength=(previous.end-previous.start)/100*oldDuration;const transitionDuration=existing?.duration??Math.min(.5,Math.max(.1,clipLength*.45),Math.max(.1,previousLength*.45));
     if(!existing&&overlap<.08){
       const nextDuration=oldDuration-transitionDuration;
       if(nextDuration<.5){setError("This project is too short for that transition.");return;}
