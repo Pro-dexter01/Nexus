@@ -22,7 +22,7 @@ async function getFFmpeg() {
 }
 
 export type SpeedPoint = { position: number; speed: number };
-export type NexusTimelineSegment = { id: string; start: number; sourceStart: number; sourceEnd: number; speed?: number; reverse?: boolean; freezeAt?: number; freezeDuration?: number };
+export type NexusTimelineSegment = { id: string; start: number; sourceStart: number; sourceEnd: number; inputIndex?: number; sourceDuration?: number; speed?: number; reverse?: boolean; freezeAt?: number; freezeDuration?: number };
 
 export type NexusRenderOptions = {
   trimStart?: number;
@@ -235,19 +235,25 @@ function buildVisualFilters(o: NexusRenderOptions) {
   return filters;
 }
 
-export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onProgress?: (p: number) => void) {
+export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOptions, onProgress?: (p: number) => void) {
+  const files = Array.isArray(file) ? file : [file];
+  if (!files.length) throw new Error("Import at least one video before rendering.");
   const engine = await getFFmpeg();
   const stamp = Date.now();
-  const input = `nexus-v2-in-${stamp}.${file.name.split(".").pop() || "mp4"}`;
+  const inputs = files.map((f,i)=>`nexus-v2-in-${stamp}-${i}.${f.name.split(".").pop() || "mp4"}`);
   const output = `nexus-v2-out-${stamp}.mp4`;
   const progressListener = ({ progress }: { progress: number }) => onProgress?.(clamp(progress, 0, 1));
   engine.on("progress", progressListener);
-  await engine.writeFile(input, await fetchFile(file));
+  try {
+    for (let i=0;i<files.length;i++) {
+      const source=files[i], path=inputs[i];
+      if(source && path) await engine.writeFile(path,await fetchFile(source));
+    }
 
   const start = clamp(Number(o.trimStart ?? 0), 0, 99.9) / 100;
   const end = clamp(Number(o.trimEnd ?? 100), start + 0.1, 100) / 100;
   const sourceDuration = Math.max(0.1, Number(o.durationSeconds || 3600));
-  const args = ["-i", input];
+  const args = inputs.flatMap(path=>["-i",path]);
   const vf = buildVisualFilters(o);
 
   // Real sequence assembly: every timeline clip becomes a source-trimmed segment.
@@ -260,18 +266,18 @@ export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onPr
     const graph: string[] = [];
     const videoLabels: string[] = [];
     const audioLabels: string[] = [];
-    const probeLog: string[] = [];
-    const onLog = ({ message }: { message: string }) => probeLog.push(message);
-    let hasAudio = false;
-    try {
-      engine.on("log", onLog);
-      await engine.ffprobe(["-v","error","-select_streams","a:0","-show_entries","stream=index","-of","csv=p=0",input]);
-      hasAudio = probeLog.join("\\n").trim().length > 0;
-    } catch {
-      hasAudio = false;
-    } finally {
-      engine.off("log", onLog);
+    const hasAudioSources:boolean[]=[];
+    for(const input of inputs){
+      const probeLog:string[]=[];
+      const onLog=({message}:{message:string})=>probeLog.push(message);
+      try{
+        engine.on("log",onLog);
+        await engine.ffprobe(["-v","error","-select_streams","a:0","-show_entries","stream=index","-of","csv=p=0",input]);
+        hasAudioSources.push(probeLog.join("\\n").trim().length>0);
+      }catch{hasAudioSources.push(false);}
+      finally{engine.off("log",onLog);}
     }
+    const hasAudio=hasAudioSources.some(Boolean);
     const audioFilters: string[] = [];
     const volume = o.muted ? 0 : clamp(Number(o.volume ?? 100) / 100, 0, 2);
     audioFilters.push(`volume=${volume}`);
@@ -289,14 +295,18 @@ export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onPr
     if (compress > 0) audioFilters.push(`acompressor=threshold=${-30+compress*.1}dB:ratio=${(1+compress/12).toFixed(2)}:attack=5:release=80:makeup=1`);
     if (o.normalizeAudio) audioFilters.push("loudnorm=I=-14:TP=-1.5:LRA=11");
     if (o.audioFadeIn) audioFilters.push(`afade=t=in:st=0:d=${clamp(Number(o.audioFadeIn),0,30)}`);
-    const timelineSeconds = segments.reduce((total,clip) => total + ((clamp(clip.sourceEnd,0,100)-clamp(clip.sourceStart,0,100))/100*sourceDuration)/clamp(Number(clip.speed||1),.25,4) + clamp(Number(clip.freezeDuration||0),0,30),0);
+    const timelineSeconds = segments.reduce((total,clip) => total + ((clamp(clip.sourceEnd,0,100)-clamp(clip.sourceStart,0,100))/100*Math.max(.1,Number(clip.sourceDuration||sourceDuration)))/clamp(Number(clip.speed||1),.25,4) + clamp(Number(clip.freezeDuration||0),0,30),0);
     if (o.audioFadeOut) { const fade = clamp(Number(o.audioFadeOut),0,30); audioFilters.push(`afade=t=out:st=${Math.max(0,timelineSeconds-fade)}:d=${fade}`); }
     segments.forEach((clip,index) => {
-      const start = clamp(clip.sourceStart,0,100) / 100 * sourceDuration;
-      const end = clamp(clip.sourceEnd,0,100) / 100 * sourceDuration;
+      const inputIndex=clamp(Math.floor(Number(clip.inputIndex??0)),0,inputs.length-1);
+      const clipSourceDuration=Math.max(.1,Number(clip.sourceDuration||sourceDuration));
+      const sourceInput=inputs[inputIndex]??inputs[0];
+      const sourceHasAudio=Boolean(hasAudioSources[inputIndex]);
+      const start = clamp(clip.sourceStart,0,100) / 100 * clipSourceDuration;
+      const end = clamp(clip.sourceEnd,0,100) / 100 * clipSourceDuration;
       const speed = clamp(Number(clip.speed || 1),.25,4);
       const freeze = clamp(Number(clip.freezeDuration || 0),0,30);
-      const freezeAt = clip.freezeAt === undefined ? null : clamp(Number(clip.freezeAt),0,100)/100*sourceDuration;
+      const freezeAt = clip.freezeAt === undefined ? null : clamp(Number(clip.freezeAt),0,100)/100*clipSourceDuration;
       const splitFreeze = freeze > 0 && freezeAt !== null && freezeAt > start + 0.04 && freezeAt < end - 0.04;
       if (splitFreeze && freezeAt !== null) {
         // Freeze is inserted at the selected source frame, not appended to the clip tail.
@@ -309,24 +319,24 @@ export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onPr
           const vLabel=`vpart${index}_${partIndex}`;
           if (piece.freeze) {
             const still=[`trim=start=${freezeAt.toFixed(4)}:end=${Math.min(end,freezeAt+0.08).toFixed(4)}`,"setpts=PTS-STARTPTS",`tpad=stop_mode=clone:stop_duration=${freeze}`,...vf];
-            graph.push(`[0:v:0]${still.join(",")}[${vLabel}]`);
+            graph.push(`[${inputIndex}:v:0]${still.join(",")}[${vLabel}]`);
           } else {
             const chain=[`trim=start=${piece.from.toFixed(4)}:end=${piece.to.toFixed(4)}`,"setpts=PTS-STARTPTS"];
             if(piece.reverse)chain.push("reverse","setpts=PTS-STARTPTS");
             if(speed!==1)chain.push(`setpts=PTS/${speed}`);
             chain.push(...vf);
-            graph.push(`[0:v:0]${chain.join(",")}[${vLabel}]`);
+            graph.push(`[${inputIndex}:v:0]${chain.join(",")}[${vLabel}]`);
           }
           vparts.push(`[${vLabel}]`);
           if(hasAudio){
             const aLabel=`apart${index}_${partIndex}`;
-            if(piece.freeze){
+            if(piece.freeze || !sourceHasAudio){
               graph.push(`anullsrc=r=48000:cl=stereo,atrim=duration=${freeze},asetpts=PTS-STARTPTS[${aLabel}]`);
             }else{
               const chain=[`atrim=start=${piece.from.toFixed(4)}:end=${piece.to.toFixed(4)}`,"asetpts=PTS-STARTPTS","aformat=sample_rates=48000:channel_layouts=stereo"];
               if(piece.reverse)chain.push("areverse","asetpts=PTS-STARTPTS");
               if(speed!==1)chain.push(atempoChain(speed));
-              graph.push(`[0:a:0]${chain.join(",")}[${aLabel}]`);
+              graph.push(`[${inputIndex}:a:0]${chain.join(",")}[${aLabel}]`);
             }
             aparts.push(`[${aLabel}]`);
           }
@@ -339,13 +349,18 @@ export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onPr
         if (speed !== 1) v.push(`setpts=PTS/${speed}`);
         if (vf.length) v.push(...vf);
         if (freeze > 0) v.push(`tpad=stop_mode=clone:stop_duration=${freeze}`);
-        graph.push(`[0:v:0]${v.join(",")}[vseg${index}]`);
+        graph.push(`[${inputIndex}:v:0]${v.join(",")}[vseg${index}]`);
         if (hasAudio) {
-          const a = [`atrim=start=${start.toFixed(4)}:end=${end.toFixed(4)}`,"asetpts=PTS-STARTPTS"];
-          if (clip.reverse) a.push("areverse","asetpts=PTS-STARTPTS");
-          if (speed !== 1) a.push(atempoChain(speed));
-          if (freeze > 0) a.push(`apad=pad_dur=${freeze}`);
-          graph.push(`[0:a:0]${a.join(",")}[`+ `aseg${index}]`);
+          if(sourceHasAudio){
+            const a = [`atrim=start=${start.toFixed(4)}:end=${end.toFixed(4)}`,"asetpts=PTS-STARTPTS","aformat=sample_rates=48000:channel_layouts=stereo"];
+            if (clip.reverse) a.push("areverse","asetpts=PTS-STARTPTS");
+            if (speed !== 1) a.push(atempoChain(speed));
+            if (freeze > 0) a.push(`apad=pad_dur=${freeze}`);
+            graph.push(`[${inputIndex}:a:0]${a.join(",")}[aseg${index}]`);
+          } else {
+            const silentDuration=(end-start)/speed+freeze;
+            graph.push(`anullsrc=r=48000:cl=stereo,atrim=duration=${silentDuration},asetpts=PTS-STARTPTS[aseg${index}]`);
+          }
         }
       }
       videoLabels.push(`[vseg${index}]`);
@@ -375,9 +390,13 @@ export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onPr
       return new Blob([buffer], { type: "video/mp4" });
     } finally {
       engine.off("progress", progressListener);
-      await engine.deleteFile(input).catch(() => undefined);
+      for(const path of inputs) await engine.deleteFile(path).catch(() => undefined);
       await engine.deleteFile(output).catch(() => undefined);
     }
+  } finally {
+    engine.off("progress",progressListener);
+    for(const path of inputs) await engine.deleteFile(path).catch(()=>undefined);
+    await engine.deleteFile(output).catch(()=>undefined);
   }
   const reverse = Boolean(o.reverse);
   const freezeAtPct = o.freezeAt === undefined ? null : clamp(Number(o.freezeAt), 0, 100) / 100;
@@ -479,7 +498,7 @@ export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onPr
     return new Blob([buffer], { type: "video/mp4" });
   } finally {
     engine.off("progress", progressListener);
-    await engine.deleteFile(input).catch(() => undefined);
+    for(const path of inputs) await engine.deleteFile(path).catch(() => undefined);
     await engine.deleteFile(output).catch(() => undefined);
   }
 }
