@@ -13,7 +13,7 @@ type Clip = { id:string; mediaId:string; name:string; start:number; end:number; 
 type EffectLayer = { id:string; effect:string; enabled:boolean; opacity:number };
 type SpeedPoint = { position:number; speed:number };
 export type NexusEditorDashboardProps = {
-  file:File; mediaAssets:MediaAsset[]; addMediaFile:(file:File)=>void; addAssetToTimeline:(id:string)=>void; onVideoMetadata:()=>void; onActivateClip:(clip:Clip)=>void; addFileRef:RefObject<HTMLInputElement|null>; animatedScale:number; animatedOpacity:number; animatedBlur:number; animatedRotation:number; animatedPosX:number; animatedPosY:number; animatedVolume:number; src:string|null; output:string|null; videoRef:RefObject<HTMLVideoElement|null>;
+  file:File; mediaAssets:MediaAsset[]; addMediaFile:(file:File)=>void; addMediaFiles:(files:File[])=>void; addAssetToTimeline:(id:string)=>void; onVideoMetadata:()=>void; onActivateClip:(clip:Clip)=>void; addFileRef:RefObject<HTMLInputElement|null>; animatedScale:number; animatedOpacity:number; animatedBlur:number; animatedRotation:number; animatedPosX:number; animatedPosY:number; animatedVolume:number; src:string|null; output:string|null; videoRef:RefObject<HTMLVideoElement|null>;
   duration:number; setDuration:(v:number)=>void; playhead:number; setPlayhead:(v:number)=>void;
   seek:(v:number)=>void; playing:boolean; setPlaying:(v:boolean)=>void; muted:boolean; setMuted:(v:boolean)=>void;
   tool:string; setTool:(v:ToolId)=>void; subTool:string; setSubTool:(v:string)=>void;
@@ -124,6 +124,6 @@ export function NexusEditorDashboard({p}:{p:NexusEditorDashboardProps}){
   <Timeline p={p}/>
   {p.processing&&<div className="nx-render-toast"><div><WandSparkles size={16}/><b>Building your video</b><span>{Math.round(p.progress*100)}%</span></div><div className="nx-progress"><i style={{width:(p.progress*100)+"%"}}/></div></div>}
   {p.error&&<div className="nx-error-toast"><span>{p.error}</span><button onClick={()=>p.setError("")}><X size={15}/></button></div>}
-  <input ref={p.addFileRef} type="file" accept="video/*" className="hidden" onChange={e=>{const el=e.currentTarget;const f=el.files?.[0];if(f)p.addMediaFile(f);el.value=""}}/>
+  <input ref={p.addFileRef} type="file" accept="video/*" multiple className="hidden" onChange={e=>{const el=e.currentTarget;const files=Array.from(el.files??[]);if(files.length)p.addMediaFiles(files);el.value=""}}/>
  </main>
 }
