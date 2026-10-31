@@ -22,6 +22,7 @@ async function getFFmpeg() {
 }
 
 export type SpeedPoint = { position: number; speed: number };
+export type NexusTimelineSegment = { id: string; sourceStart: number; sourceEnd: number; speed?: number; reverse?: boolean; freezeDuration?: number };
 
 export type NexusRenderOptions = {
   trimStart?: number;
@@ -94,6 +95,7 @@ export type NexusRenderOptions = {
   reverse?: boolean;
   freezeAt?: number;
   freezeDuration?: number;
+  timelineSegments?: NexusTimelineSegment[];
 };
 
 const effectFilters: Record<string, string> = {
@@ -246,6 +248,92 @@ export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onPr
   const sourceDuration = Math.max(0.1, Number(o.durationSeconds || 3600));
   const args = ["-i", input];
   const vf = buildVisualFilters(o);
+
+  // Real sequence assembly: every timeline clip becomes a source-trimmed segment.
+  // This replaces the former behaviour that exported only the currently selected clip.
+  if (o.timelineSegments?.length) {
+    const segments = [...o.timelineSegments]
+      .filter(x => Number.isFinite(x.sourceStart) && Number.isFinite(x.sourceEnd) && x.sourceEnd > x.sourceStart)
+      .sort((a,b) => a.sourceStart - b.sourceStart);
+    if (!segments.length) throw new Error("The timeline has no valid video segments.");
+    const graph: string[] = [];
+    const videoLabels: string[] = [];
+    const audioLabels: string[] = [];
+    const probeLog: string[] = [];
+    const onLog = ({ message }: { message: string }) => probeLog.push(message);
+    let hasAudio = false;
+    try {
+      engine.on("log", onLog);
+      await engine.ffprobe(["-v","error","-select_streams","a:0","-show_entries","stream=index","-of","csv=p=0",input]);
+      hasAudio = probeLog.join("\\n").trim().length > 0;
+    } catch {
+      hasAudio = false;
+    } finally {
+      engine.off("log", onLog);
+    }
+    const audioFilters: string[] = [];
+    const volume = o.muted ? 0 : clamp(Number(o.volume ?? 100) / 100, 0, 2);
+    audioFilters.push(`volume=${volume}`);
+    const pan = clamp(Number(o.pan ?? 0) / 100, -1, 1);
+    const bass = clamp(Number(o.bass ?? 0), -12, 12);
+    const treble = clamp(Number(o.treble ?? 0), -12, 12);
+    const compress = clamp(Number(o.compress ?? 0), 0, 100);
+    if (bass) audioFilters.push(`bass=g=${bass}:f=100:t=q`);
+    if (treble) audioFilters.push(`treble=g=${treble}:f=4000:t=q`);
+    if (Math.abs(pan) > .001) {
+      const left = clamp(1 - Math.max(0,pan),0,1);
+      const right = clamp(1 + Math.max(0,-pan),0,2);
+      audioFilters.push(`pan=stereo|c0=${left}*c0+${Math.max(0,pan)}*c1|c1=${Math.max(0,-pan)}*c0+${right}*c1`);
+    }
+    if (compress > 0) audioFilters.push(`acompressor=threshold=${-30+compress*.1}dB:ratio=${(1+compress/12).toFixed(2)}:attack=5:release=80:makeup=1`);
+    if (o.normalizeAudio) audioFilters.push("loudnorm=I=-14:TP=-1.5:LRA=11");
+    if (o.audioFadeIn) audioFilters.push(`afade=t=in:st=0:d=${clamp(Number(o.audioFadeIn),0,30)}`);
+    if (o.audioFadeOut) audioFilters.push(`afade=t=out:st=0:d=${clamp(Number(o.audioFadeOut),0,30)}`);
+    segments.forEach((clip,index) => {
+      const start = clamp(clip.sourceStart,0,100) / 100 * sourceDuration;
+      const end = clamp(clip.sourceEnd,0,100) / 100 * sourceDuration;
+      const speed = clamp(Number(clip.speed || 1),.25,4);
+      const freeze = clamp(Number(clip.freezeDuration || 0),0,30);
+      const v = [`trim=start=${start.toFixed(4)}:end=${end.toFixed(4)}`,"setpts=PTS-STARTPTS"];
+      if (clip.reverse) v.push("reverse","setpts=PTS-STARTPTS");
+      if (speed !== 1) v.push(`setpts=PTS/${speed}`);
+      if (vf.length) v.push(...vf);
+      if (freeze > 0) v.push(`tpad=stop_mode=clone:stop_duration=${freeze}`);
+      graph.push(`[0:v:0]${v.join(",")}[vseg${index}]`);
+      videoLabels.push(`[vseg${index}]`);
+      if (hasAudio) {
+        const a = [`atrim=start=${start.toFixed(4)}:end=${end.toFixed(4)}`,"asetpts=PTS-STARTPTS"];
+        if (clip.reverse) a.push("areverse","asetpts=PTS-STARTPTS");
+        if (speed !== 1) a.push(atempoChain(speed));
+        if (freeze > 0) a.push(`apad=pad_dur=${freeze}`);
+        graph.push(`[0:a:0]${a.join(",")}[aseg${index}]`);
+        audioLabels.push(`[aseg${index}]`);
+      }
+    });
+    graph.push(`${videoLabels.join("")}concat=n=${videoLabels.length}:v=1:a=0[vout]`);
+    if (hasAudio) graph.push(`${audioLabels.join("")}concat=n=${audioLabels.length}:v=0:a=1,${audioFilters.join(",")}[aout]`);
+    args.push("-filter_complex",graph.join(";"),"-map","[vout]");
+    if (hasAudio) args.push("-map","[aout]");
+    args.push("-an");
+    if (hasAudio) args.pop();
+    if (o.targetFps) args.push("-r",String(clamp(Number(o.targetFps),12,120)));
+    const preset = o.compression || "BALANCED";
+    const crf = preset === "SOCIAL" ? "26" : preset === "HIGH_QUALITY" ? "18" : "22";
+    const maxrate = preset === "SOCIAL" ? "5M" : preset === "HIGH_QUALITY" ? "14M" : "8M";
+    args.push("-c:v","libx264","-preset","veryfast","-crf",crf,"-maxrate",maxrate,"-bufsize",preset === "SOCIAL" ? "10M" : preset === "HIGH_QUALITY" ? "28M" : "16M","-pix_fmt","yuv420p");
+    if (hasAudio) args.push("-c:a","aac","-b:a",preset === "SOCIAL" ? "128k" : "192k");
+    args.push("-movflags","+faststart","-y",output);
+    const result = await engine.exec(args);
+    if (result !== 0) throw new Error("NEXUS could not assemble the full timeline. Check the source codec and clip ranges.");
+    const data = await engine.readFile(output);
+    await engine.deleteFile(input).catch(() => undefined);
+    await engine.deleteFile(output).catch(() => undefined);
+    onProgress?.(1);
+    const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
+    const buffer = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(buffer).set(bytes);
+    return new Blob([buffer], { type: "video/mp4" });
+  }
   const reverse = Boolean(o.reverse);
   const freezeAtPct = o.freezeAt === undefined ? null : clamp(Number(o.freezeAt), 0, 100) / 100;
   const freezeSeconds = clamp(Number(o.freezeDuration ?? 0), 0, 30);
