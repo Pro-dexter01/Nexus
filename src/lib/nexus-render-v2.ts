@@ -22,7 +22,7 @@ async function getFFmpeg() {
 }
 
 export type SpeedPoint = { position: number; speed: number };
-export type NexusTimelineSegment = { id: string; start: number; sourceStart: number; sourceEnd: number; inputIndex?: number; sourceDuration?: number; speed?: number; speedRamp?: SpeedPoint[]; reverse?: boolean; freezeAt?: number; freezeDuration?: number };
+export type NexusTimelineSegment = { id: string; start: number; sourceStart: number; sourceEnd: number; inputIndex?: number; sourceDuration?: number; speed?: number; speedRamp?: SpeedPoint[]; transitionIn?: {type:string;duration:number}; reverse?: boolean; freezeAt?: number; freezeDuration?: number };
 
 export type NexusRenderOptions = {
   trimStart?: number;
@@ -347,8 +347,9 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
     const addGap=(gap:number,index:number)=>{
       if(gap<=0.04)return;
       graph.push(`color=c=black:s=${outputWidth}x${outputHeight}:r=30:d=${gap},format=yuv420p[vgap${index}]`);
-      videoLabels.push(`[vgap${index}]`);
-      if(hasAudio){graph.push(`anullsrc=r=48000:cl=stereo,atrim=duration=${gap},asetpts=PTS-STARTPTS[agap${index}]`);audioLabels.push(`[agap${index}]`);}
+      const audioLabel=hasAudio?`[agap${index}]`:undefined;
+      if(hasAudio)graph.push(`anullsrc=r=48000:cl=stereo,atrim=duration=${gap},asetpts=PTS-STARTPTS${audioLabel}`);
+      timelinePieces.push({video:`[vgap${index}]`,audio:audioLabel,start:timelineCursor,duration:gap,transitionDuration:0,transitionType:"fade"});
     };
     segments.forEach((clip,index) => {
       const inputIndex=clamp(Math.floor(Number(clip.inputIndex??0)),0,inputs.length-1);
@@ -361,8 +362,12 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
       const freezeAt = clip.freezeAt === undefined ? null : clamp(Number(clip.freezeAt),0,100)/100*clipSourceDuration;
       const segmentFilters=[...vf,`scale=${outputWidth}:${outputHeight}:force_original_aspect_ratio=decrease:flags=lanczos`,`pad=${outputWidth}:${outputHeight}:(ow-iw)/2:(oh-ih)/2:color=black`,`setsar=1`,`fps=30`,`format=yuv420p`];
       const timelineStart=clamp(Number(clip.start||0),0,100)/100*sourceDuration;
-      if(timelineStart<timelineCursor-0.08){void cleanup();throw new Error("Overlapping clips need a transition/compositing pass, which is not enabled yet. Move the clips so they do not overlap.");}
-      addGap(timelineStart-timelineCursor,index);
+      const overlap=Math.max(0,timelineCursor-timelineStart);
+      const transition=clip.transitionIn;
+      if(overlap>0.08&&!transition){void cleanup();throw new Error("Overlapping clips need a transition. Apply a transition preset or move the clips apart.");}
+      if(transition&&Math.abs(overlap-clamp(Number(transition.duration),.05,3))>.12){void cleanup();throw new Error("The transition overlap and transition duration do not match. Reapply the transition preset.");}
+      const transitionDuration=transition?clamp(Number(transition.duration),.05,Math.min(3,Math.max(.06,segmentOutputDuration-.05))):0;
+      if(timelineStart>timelineCursor)addGap(timelineStart-timelineCursor,index);
       const clipRamp=normalizeSpeedRamp(clip.speedRamp);
       const useRamp=clipRamp.length>=2&&!clip.reverse&&freeze<=0;
       const segmentOutputDuration=(useRamp?rampDuration(end-start,clipRamp):(end-start)/speed)+freeze;
@@ -435,14 +440,23 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
           }
         }
       }
-      videoLabels.push(`[vseg${index}]`);
-      if(hasAudio)audioLabels.push(`[aseg${index}]`);
+      timelinePieces.push({video:`[vseg${index}]`,audio:hasAudio?`[aseg${index}]`:undefined,start:timelineStart,duration:segmentOutputDuration,transitionDuration,transitionType:transition?.type??"fade"});
       timelineCursor=timelineStart+segmentOutputDuration;
     });
     addGap(Math.max(0,timelineSeconds-timelineCursor),segments.length);
-    graph.push(`${videoLabels.join("")}concat=n=${videoLabels.length}:v=1:a=0[vconcat]`);
-    const videoBase=hasTextOverlay? "vtext":"vconcat";
-    if(hasTextOverlay)graph.push(`[vconcat][${inputs.length}:v:0]overlay=x=(W-w)/2:y=H-h-48:shortest=1:format=auto[vtext]`);
+    if(!timelinePieces.length){await cleanup();throw new Error("The timeline contains no renderable clips.");}
+    let videoChain=timelinePieces[0]!.video;
+    let audioChain=timelinePieces[0]!.audio??"";
+    for(let pieceIndex=1;pieceIndex<timelinePieces.length;pieceIndex++){
+      const piece=timelinePieces[pieceIndex];if(!piece)continue;
+      const videoLabel=`vchain${pieceIndex}`;
+      if(piece.transitionDuration>0)graph.push(`${videoChain}${piece.video}xfade=transition=${piece.transitionType}:duration=${piece.transitionDuration}:offset=${piece.start}[${videoLabel}]`);
+      else graph.push(`${videoChain}${piece.video}concat=n=2:v=1:a=0[${videoLabel}]`);
+      videoChain=`[${videoLabel}]`;
+      if(hasAudio&&piece.audio){const audioLabel=`achain${pieceIndex}`;if(piece.transitionDuration>0)graph.push(`${audioChain}${piece.audio}acrossfade=d=${piece.transitionDuration}:c1=tri:c2=tri[${audioLabel}]`);else graph.push(`${audioChain}${piece.audio}concat=n=2:v=0:a=1[${audioLabel}]`);audioChain=`[${audioLabel}]`; }
+    }
+    const videoBase=hasTextOverlay?"vtext":videoChain.slice(1,-1);
+    if(hasTextOverlay)graph.push(`${videoChain}[${inputs.length}:v:0]overlay=x=(W-w)/2:y=H*0.42-h/2:shortest=1:format=auto[vtext]`);
     const motionFilters:string[]=[];
     const keyframes=o.keyframes??[];
     const hasKF=(property:string)=>keyframes.some(point=>point.property===property);
@@ -462,7 +476,7 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
     }
     if(motionFilters.length)graph.push("["+videoBase+"]"+motionFilters.join(",")+"[vout]");
     else graph.push("["+videoBase+"]null[vout]");
-    if (hasAudio) graph.push(`${audioLabels.join("")}concat=n=${audioLabels.length}:v=0:a=1,${audioFilters.join(",")}[aout]`);
+    if(hasAudio)graph.push(`${audioChain}${audioFilters.join(",")}[aout]`);
     args.push("-filter_complex",graph.join(";"),"-map","[vout]");
     if (hasAudio) args.push("-map","[aout]");
     if (!hasAudio) args.push("-an");
