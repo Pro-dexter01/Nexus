@@ -22,7 +22,7 @@ async function getFFmpeg() {
 }
 
 export type SpeedPoint = { position: number; speed: number };
-export type NexusTimelineSegment = { id: string; sourceStart: number; sourceEnd: number; speed?: number; reverse?: boolean; freezeDuration?: number };
+export type NexusTimelineSegment = { id: string; start: number; sourceStart: number; sourceEnd: number; speed?: number; reverse?: boolean; freezeDuration?: number };
 
 export type NexusRenderOptions = {
   trimStart?: number;
@@ -254,7 +254,7 @@ export async function renderNexusVideoV2(file: File, o: NexusRenderOptions, onPr
   if (o.timelineSegments?.length) {
     const segments = [...o.timelineSegments]
       .filter(x => Number.isFinite(x.sourceStart) && Number.isFinite(x.sourceEnd) && x.sourceEnd > x.sourceStart)
-      .sort((a,b) => a.sourceStart - b.sourceStart);
+      .sort((a,b) => a.start - b.start);
     if (!segments.length) throw new Error("The timeline has no valid video segments.");
     const graph: string[] = [];
     const videoLabels: string[] = [];
