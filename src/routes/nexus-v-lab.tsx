@@ -302,41 +302,49 @@ export default function NexusVLab() {
     if(rangeStart===null||rangeEnd===null)return null;
     return rangeStart<=rangeEnd?[rangeStart,rangeEnd]:[rangeEnd,rangeStart];
   };
+  // Ripple removal works in timeline seconds, then re-normalizes clip positions
+  // against the shorter project duration. Source in/out points remain untouched.
+  const rippleRemoveRange=(fromPct:number,toPct:number)=>{
+    const oldDuration=Math.max(.1,duration);
+    const from=Math.max(0,Math.min(100,Math.min(fromPct,toPct)))/100*oldDuration;
+    const to=Math.max(0,Math.min(100,Math.max(fromPct,toPct)))/100*oldDuration;
+    const removed=to-from;
+    if(removed<.001)return;
+    const nextDuration=Math.max(.1,oldDuration-removed);
+    const pct=(seconds:number)=>Math.max(0,Math.min(100,seconds/nextDuration*100));
+    setClips(current=>current.flatMap(c=>{
+      const start=c.start/100*oldDuration,end=c.end/100*oldDuration;
+      const span=Math.max(.001,end-start),sourceSpan=c.sourceEnd-c.sourceStart;
+      if(end<=from+.001)return [{...c,start:pct(start),end:pct(end)}];
+      if(start>=to-.001)return [{...c,start:pct(start-removed),end:pct(end-removed)}];
+      const pieces:Clip[]=[];
+      if(start<from-.001){
+        const ratio=(from-start)/span;
+        pieces.push({...c,id:crypto.randomUUID(),start:pct(start),end:pct(from),sourceEnd:c.sourceStart+sourceSpan*ratio});
+      }
+      if(end>to+.001){
+        const ratio=(to-start)/span;
+        pieces.push({...c,id:crypto.randomUUID(),start:pct(from),end:pct(end-removed),sourceStart:c.sourceStart+sourceSpan*ratio});
+      }
+      return pieces;
+    }).sort((a,b)=>a.start-b.start));
+    setDuration(nextDuration);
+    setPlayhead(Math.max(0,Math.min(100,from/nextDuration*100)));
+    setRangeStart(null);setRangeEnd(null);
+  };
   const cutRange=()=>{
-    if(!active)return;
     const r=normalizedRange();
     if(!r){setError("Set MARK IN and MARK OUT before using CUT.");return;}
-    const [rs,re]=r;
-    const s=Math.max(active.start,rs), e=Math.min(active.end,re);
-    if(e-s<.5)return;
-    const span=active.end-active.start, srcSpan=active.sourceEnd-active.sourceStart;
-    const leftRatio=(s-active.start)/Math.max(.001,span), rightRatio=(e-active.start)/Math.max(.001,span);
-    const left=s>active.start+.01?{...active,id:crypto.randomUUID(),end:s,sourceEnd:active.sourceStart+srcSpan*leftRatio}:null;
-    const right=e<active.end-.01?{...active,id:crypto.randomUUID(),start:e,sourceStart:active.sourceStart+srcSpan*rightRatio}:null;
-    setClips(cs=>cs.flatMap(x=>x.id===active.id?[...(left?[left]:[]),...(right?[right]:[])]:[x]).sort((a,b)=>a.start-b.start));
-    setActiveClip(right?.id??left?.id??null);
+    rippleRemoveRange(r[0],r[1]);
   };
   const rippleDelete=()=>{
     const r=normalizedRange();
-    if(r){
-      const [rs,re]=r, gap=re-rs;
-      if(gap<.01)return;
-      setClips(cs=>cs.flatMap(c=>{
-        if(c.end<=rs)return [c];
-        if(c.start>=re)return [{...c,start:c.start-gap,end:c.end-gap}];
-        const span=c.end-c.start, srcSpan=c.sourceEnd-c.sourceStart;
-        const pieces:Clip[]=[];
-        if(c.start<rs){const ratio=(rs-c.start)/Math.max(.001,span);pieces.push({...c,id:crypto.randomUUID(),end:rs,sourceEnd:c.sourceStart+srcSpan*ratio});}
-        if(c.end>re){const ratio=(re-c.start)/Math.max(.001,span);pieces.push({...c,id:crypto.randomUUID(),start:rs,end:c.end-gap,sourceStart:c.sourceStart+srcSpan*ratio});}
-        return pieces;
-      }).sort((a,b)=>a.start-b.start));
-      setRangeStart(null);setRangeEnd(null);setPlayhead(Math.min(100,rs));
-      return;
-    }
+    if(r){rippleRemoveRange(r[0],r[1]);return;}
     if(!active)return;
-    const width=active.end-active.start;
-    setClips(cs=>cs.filter(c=>c.id!==active.id).map(c=>c.start>active.end?{...c,start:c.start-width,end:c.end-width}:c).sort((a,b)=>a.start-b.start));
-    setActiveClip(null);
+    rippleRemoveRange(active.start,active.end);
+    const ordered=[...clips].sort((a,b)=>a.start-b.start);
+    const index=ordered.findIndex(c=>c.id===active.id);
+    setActiveClip(ordered[index+1]?.id??ordered[index-1]?.id??null);
   };
   const trimToPlayhead=(side:"start"|"end")=>{
     if(!active)return;
@@ -352,7 +360,13 @@ export default function NexusVLab() {
   const addManualBeat=()=>{const time=playhead/100*duration;setBeatMarkers(m=>[...m,{id:crypto.randomUUID(),time,strength:"beat" as const,label:"MARK"}].sort((a,b)=>a.time-b.time));};
   const clearBeatMarkers=()=>setBeatMarkers([]);
   const autoBeatMarkers=()=>{setSubTool("Auto Beat Markers");setError("Automatic beat detection is not implemented yet. Use + Marker to place beat markers manually.");};
-  const deleteClip=()=>{if(!activeClip)return;setClips(c=>{const n=c.filter(x=>x.id!==activeClip);setActiveClip(n[0]?.id??null);return n;});};
+  const deleteClip=()=>{
+    const selected=clips.find(c=>c.id===activeClip);
+    if(!selected)return;
+    const ordered=[...clips].sort((a,b)=>a.start-b.start),index=ordered.findIndex(c=>c.id===selected.id);
+    rippleRemoveRange(selected.start,selected.end);
+    setActiveClip(ordered[index+1]?.id??ordered[index-1]?.id??null);
+  };
   const duplicateClip=()=>{const s=clips.find(c=>c.id===activeClip);if(!s)return;const w=s.end-s.start,start=Math.min(100-w,s.end+1),copy={...s,id:crypto.randomUUID(),start,end:start+w};setClips(c=>[...c,copy].sort((a,b)=>a.start-b.start));setActiveClip(copy.id);};
   const applyTransition=(type:string)=>{
     if(!active){setError("Select a clip after the first clip to add a transition.");return;}
