@@ -36,20 +36,20 @@
 .nx-editor-shell section{border-color:rgba(255,255,255,.09)!important}
 .nx-editor-shell button{transition:background-color .14s,border-color .14s,color .14s}
 .nx-editor-shell button:hover{border-color:rgba(203,151,171,.4)}
-.nx-editor-shell .text-\\[5px\\]{font-size:9px!important}
-.nx-editor-shell .text-\\[6px\\]{font-size:10px!important}
-.nx-editor-shell .text-\\[7px\\]{font-size:11px!important}
-.nx-editor-shell .text-\\[8px\\]{font-size:12px!important}
-.nx-editor-shell .text-\\[9px\\]{font-size:12px!important}
-.nx-editor-shell .text-\\[10px\\]{font-size:13px!important}
+.nx-editor-shell .text-\[5px\]{font-size:9px!important}
+.nx-editor-shell .text-\[6px\]{font-size:10px!important}
+.nx-editor-shell .text-\[7px\]{font-size:11px!important}
+.nx-editor-shell .text-\[8px\]{font-size:12px!important}
+.nx-editor-shell .text-\[9px\]{font-size:12px!important}
+.nx-editor-shell .text-\[10px\]{font-size:13px!important}
 .nx-editor-shell .nx-editor-topbar{background:rgba(22,18,23,.97)!important}
 .nx-editor-shell .nx-tool-icon{color:#d1a2b3}
 .nx-editor-shell input[type="range"]{accent-color:#bd829a}
 .nx-editor-shell video{border-radius:8px}
-.nx-editor-shell .bg-\\[\\#050305\\],.nx-editor-shell .bg-\\[\\#050204\\],.nx-editor-shell .bg-\\[\\#030204\\]{background-color:#151117!important}
-.nx-editor-shell .bg-\\[\\#0b0407\\],.nx-editor-shell .bg-\\[\\#0b0307\\],.nx-editor-shell .bg-\\[\\#0b0609\\]{background-color:#211922!important}
-.nx-editor-shell .bg-\\[\\#11060a\\],.nx-editor-shell .bg-\\[\\#12090d\\],.nx-editor-shell .bg-\\[\\#160b10\\]{background-color:#291e27!important}
-.nx-editor-shell .border-white\\/\\[\\.08\\],.nx-editor-shell .border-white\\/\\[\\.07\\],.nx-editor-shell .border-white\\/\\[\\.1\\]{border-color:rgba(255,255,255,.1)!important}
-.nx-editor-shell .text-\\[\\#7f858d\\],.nx-editor-shell .text-\\[\\#969ca4\\]{color:#a99da4!important}
+.nx-editor-shell .bg-\[\#050305\],.nx-editor-shell .bg-\[\#050204\],.nx-editor-shell .bg-\[\#030204\]{background-color:#151117!important}
+.nx-editor-shell .bg-\[\#0b0407\],.nx-editor-shell .bg-\[\#0b0307\],.nx-editor-shell .bg-\[\#0b0609\]{background-color:#211922!important}
+.nx-editor-shell .bg-\[\#11060a\],.nx-editor-shell .bg-\[\#12090d\],.nx-editor-shell .bg-\[\#160b10\]{background-color:#291e27!important}
+.nx-editor-shell .border-white\/\[\.08\],.nx-editor-shell .border-white\/\[\.07\],.nx-editor-shell .border-white\/\[\.1\]{border-color:rgba(255,255,255,.1)!important}
+.nx-editor-shell .text-\[\#7f858d\],.nx-editor-shell .text-\[\#969ca4\]{color:#a99da4!important}
 @media(max-width:900px){.nx-workflow-strip{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:14px}.nx-home-main{padding-top:30px;padding-bottom:30px}}
-@media(max-width:640px){.nx-home-header{padding-left:16px;padding-right:16px}.nx-status-pill{font-size:8px;padding:7px 9px}.nx-home h1{font-size:40px}.nx-workflow-strip>div{justify-content:flex-start}.nx-editor-shell .text-\\[6px\\]{font-size:10px!important}}
+@media(max-width:640px){.nx-home-header{padding-left:16px;padding-right:16px}.nx-status-pill{font-size:8px;padding:7px 9px}.nx-home h1{font-size:40px}.nx-workflow-strip>div{justify-content:flex-start}.nx-editor-shell .text-\[6px\]{font-size:10px!important}}
