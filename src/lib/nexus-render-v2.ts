@@ -270,7 +270,7 @@ export async function renderNexusVideoV2(file: File | File[], o: NexusRenderOpti
   let hasTextOverlay=false;
   const progressListener = ({ progress }: { progress: number }) => onProgress?.(clamp(progress, 0, 1));
   engine.on("progress", progressListener);
-  const cleanup=async()=>{engine.off("progress",progressListener);for(const path of inputs)await engine.deleteFile(path).catch(()=>undefined);if(hasTextOverlay)await engine.deleteFile(textOverlayPath).catch(()=>undefined);await engine.deleteFile(output).catch(()=>undefined);};
+  const cleanup=async()=>{engine.off("progress",progressListener);for(const path of inputs)await engine.deleteFile(path).catch(()=>undefined);await engine.deleteFile(textOverlayPath).catch(()=>undefined);await engine.deleteFile(output).catch(()=>undefined);};
   try{for(let i=0;i<files.length;i++){const source=files[i],path=inputs[i];if(source&&path)await engine.writeFile(path,await fetchFile(source));}}catch(error){await cleanup();throw error;}
 
   const start = clamp(Number(o.trimStart ?? 0), 0, 99.9) / 100;
