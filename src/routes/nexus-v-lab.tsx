@@ -948,7 +948,7 @@ function Landing({projects,onPick,onOpen,fileRef,onChoose}:{projects:any[];onPic
   const handleDrop=(e:React.DragEvent<HTMLDivElement>)=>{e.preventDefault();setDragging(false);const file=e.dataTransfer.files?.[0];if(file)onChoose(file);};
   return <main className="nx-home-v2">
     <div className="nx-home-orbit nx-home-orbit-a"/><div className="nx-home-orbit nx-home-orbit-b"/>
-    <header className="nx-home-top">
+    <header className="nx-home-top" id="nx-home-start">
       <div className="nx-home-brand">
         <div className="nx-emblem"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M5 8 21 18 24 23 8 14 8 39 5 41Z"/><path d="M43 8 27 18 24 23 40 14 40 39 43 41Z"/><path d="M9 18 24 27 39 18 39 22 24 32 9 22Z"/><path d="M18 28 24 24 30 28 27 31 24 29 21 31Z"/></svg><i/></div>
         <div><b>NEXUS</b><span>CREATIVE STUDIO</span></div>
@@ -976,7 +976,7 @@ function Landing({projects,onPick,onOpen,fileRef,onChoose}:{projects:any[];onPic
           </div>
           <div className="nx-drop-footer"><span><i/> INSTANT LOCAL IMPORT</span><span>MAX SOURCE SIZE <b>650 MB</b></span></div>
         </div>
-        <aside className="nx-recent-v2">
+        <aside className="nx-recent-v2" id="nx-recent-projects">
           <div className="nx-recent-head"><div><span className="nx-home-kicker">YOUR WORK</span><h3>Recent projects <b>{projects.length.toString().padStart(2,"0")}</b></h3></div><span className="nx-recent-mark">↗</span></div>
           <label className="nx-project-search"><span>⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find a project..."/><kbd>/</kbd></label>
           <div className="nx-project-list">
@@ -995,6 +995,7 @@ function Landing({projects,onPick,onOpen,fileRef,onChoose}:{projects:any[];onPic
         <div><Sparkles/><span><b>FINISH WITH INTENT</b><small>Color, effects and export</small></span></div>
       </div>
     </section>
+    <nav className="nx-home-mobile-nav" aria-label="Project navigation"><a href="#nx-home-start" className="is-current"><span>⌂</span><small>HOME</small></a><a href="#nx-recent-projects"><span>▤</span><small>PROJECTS</small></a><button type="button" onClick={onPick} aria-label="Create or import a project"><span>＋</span></button><a href="#nx-recent-projects"><span>◷</span><small>RECENT</small></a></nav>
     <footer className="nx-home-bottom"><span><b>NEXUS</b> / FLUX CREATIVE ENGINE</span><span>YOUR MEDIA STAYS ON THIS DEVICE <i/> BUILT FOR THE FRAME</span></footer>
     <input ref={fileRef} type="file" accept="video/*,.mp4,.mov,.webm,.m4v,.avi,.mkv,.mpeg,.mpg,.3gp" className="hidden" onChange={e=>{const input=e.currentTarget;onChoose(input.files?.[0]);input.value="";}}/>
   </main>;
