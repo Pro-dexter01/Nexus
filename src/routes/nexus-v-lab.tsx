@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { SpeedPoint } from "@/lib/nexus-render-v2";
 import { NexusEditorDashboard } from "@/components/nexus-editor-dashboard";
+import { NexusMobileEditor } from "@/components/nexus-mobile-editor";
 import { listNexusProjects, requestNexusPersistentStorage, type NexusProject } from "@/lib/nexus-storage";
 
 const MAX = 650 * 1024 * 1024;
@@ -556,9 +557,7 @@ export default function NexusVLab() {
     reverseClip,freezeFrame,markIn,markOut,rangeStart,rangeEnd,mediaCollapsed,setMediaCollapsed,
     fileRef,addFileRef,onReplaceFile:chooseFile,onActivateClip:activateClip,syncPreviewTime
   };
-  return isMobile
-    ? <NexusMobileEditor p={editorProps}/>
-    : <NexusEditorDashboard p={editorProps}/>;
+  return isMobile ? <NexusMobileEditor p={editorProps}/> : <NexusEditorDashboard p={editorProps}/>;
 
   const visualStyle={
     opacity:opacity/100,
