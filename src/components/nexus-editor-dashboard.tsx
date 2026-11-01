@@ -1,7 +1,7 @@
 import { useMemo, useState, type RefObject, type Dispatch, type SetStateAction } from "react";
 import {
   Activity, AudioLines, Captions, ChevronDown, CircleHelp, Clapperboard, Crop, Diamond,
-  Download, Eye, Film, Gauge, Grid2X2, Layers3, Maximize2, Mic2, MonitorPlay, MousePointer2,
+  Download, Eraser, Eye, Film, Gauge, Grid2X2, Layers3, Maximize2, Mic2, MonitorPlay, MousePointer2,
   Music2, Palette, Pause, Play, Plus, Redo2, Scissors, Search, Settings2, SlidersHorizontal,
   Sparkles, Split, Sticker, Trash2, Type, Undo2, Volume2, VolumeX, WandSparkles, Waves, X,
   ZoomIn, ZoomOut, RotateCcw, Lock, Unlock, MoreHorizontal, ArrowUpRight
