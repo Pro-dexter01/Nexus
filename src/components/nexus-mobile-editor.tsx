@@ -1,6 +1,6 @@
-import { useState, type LucideIcon } from "react";
+import { useState } from "react";
 import {
-  Activity, AudioLines, Captions, Crop, Diamond, Download, Film, Gauge, Layers3,
+  type LucideIcon, Activity, AudioLines, Captions, Crop, Diamond, Download, Film, Gauge, Layers3,
   Maximize2, Mic2, Music2, Palette, Pause, Play, Plus, Scissors, Settings2,
   SlidersHorizontal, Sparkles, Split, Sticker, Type, Volume2, VolumeX, WandSparkles, X
 } from "lucide-react";
