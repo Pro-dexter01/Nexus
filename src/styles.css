@@ -187,3 +187,67 @@ body{background:var(--nx-ink);color:var(--nx-text)}
 @media(max-width:440px){.nx-home-help{font-size:7px;padding:8px}.nx-home-brand>div:last-child b{font-size:14px}.nx-home-intro h1{font-size:40px}.nx-drop-content{padding:34px 14px 48px}.nx-drop-footer{font-size:6px;padding:12px}.nx-capability-row{grid-template-columns:1fr}.nx-capability-row>div{padding:12px}}
 @media(max-height:760px) and (min-width:761px){.nx-home-v2-content{padding-top:25px}.nx-home-intro{margin-bottom:22px}.nx-home-intro h1{font-size:54px}.nx-home-v2-grid{min-height:340px}.nx-dropzone{min-height:340px}.nx-drop-content{padding:28px 20px 44px}}
 @media(prefers-reduced-motion:reduce){.nx-home-orbit,.nx-drop-orb,.nx-ambient-one,.nx-ambient-two,.nx-ambient-three{animation:none!important;transition:none!important}}
+
+/* Workspace ergonomics: clearer hierarchy, larger controls and usable mobile panels */
+.nx-topbar{height:62px;padding:0 22px;gap:18px}
+.nx-brand{min-width:205px}.nx-brand b{font-size:14px;letter-spacing:.22em}
+.nx-brand-icon{width:38px;height:38px}
+.nx-project-meta{font-size:8px;letter-spacing:.14em}
+.nx-top-nav{gap:9px}.nx-top-nav button{height:36px;border-radius:10px;padding:0 13px}
+.nx-workspace{gap:11px;padding:11px}
+.nx-left-rail{width:66px;padding:11px 7px;gap:7px}
+.nx-rail-tab{width:52px;height:56px;border-radius:13px;font-size:8px}
+.nx-media-panel{width:238px;border-radius:15px}
+.nx-inspector{width:278px;border-radius:15px}
+.nx-center-stage{border-radius:15px}
+.nx-panel-head,.nx-inspector-head{padding:18px 16px 14px}
+.nx-preview-area{padding:22px}
+.nx-transport{height:58px}
+.nx-quick-tools{height:62px}
+.nx-timeline{height:232px;margin:0 11px 11px;border-radius:15px}
+.nx-timeline-top{height:44px}
+.nx-edit-actions button,.nx-timeline-foot button{font-size:8px}
+.nx-render-toast{border-color:rgba(86,177,255,.35);background:rgba(10,23,39,.96)}
+.nx-progress i{background:linear-gradient(90deg,#4aabff,#48d9ed,#9bbcff)}
+.nx-error-toast{background:#211b27;border-color:rgba(255,137,137,.35);color:#ffe9ed}
+.nx-clip-block.active{outline-color:#8deaff;box-shadow:0 0 18px rgba(74,171,255,.24)}
+.nx-playhead,.nx-playhead i{background:#7de9ff;box-shadow:0 0 10px rgba(75,219,255,.8)}
+.nx-key-diamond{background:#79ddff;box-shadow:0 0 9px rgba(75,219,255,.6)}
+@media(max-width:1180px){
+ .nx-media-panel{width:205px}.nx-inspector{width:238px}
+ .nx-project-meta{display:flex;max-width:260px}.nx-project-meta b{max-width:135px}
+ .nx-edit-actions button:nth-child(n+4){display:none}
+}
+@media(max-width:850px){
+ .nx-topbar{height:56px;padding:0 12px}.nx-brand{min-width:0}
+ .nx-project-meta{display:none}.nx-workspace{padding:7px;gap:7px}
+ .nx-left-rail{width:55px;padding:7px 4px}.nx-rail-tab{width:47px;height:49px}
+ .nx-media-panel{display:flex;width:100%;max-height:190px;min-height:120px}
+ .nx-inspector{width:100%;max-height:380px}
+ .nx-timeline{height:220px;margin:0 7px 7px}
+ .nx-center-stage{min-height:380px}
+ .nx-quick-tools{height:54px}
+}
+@media(max-width:620px){
+ .nx-flux-studio{overflow-y:auto;overflow-x:hidden}
+ .nx-topbar{position:sticky;top:0;z-index:60}
+ .nx-top-nav button:not(.nx-export-btn){display:none}
+ .nx-workspace{min-height:0;display:flex;flex-direction:column;overflow:visible}
+ .nx-left-rail{height:56px;min-height:56px;width:100%;flex-direction:row;justify-content:space-around}
+ .nx-rail-tab{width:52px;height:48px}
+ .nx-media-panel{max-height:205px;min-height:145px}
+ .nx-center-stage{min-height:410px;flex:none}
+ .nx-preview-area{min-height:230px;padding:12px}
+ .nx-preview-frame{width:100%;height:auto;aspect-ratio:16/9}
+ .nx-transport{height:50px}
+ .nx-quick-tools{height:54px}
+ .nx-inspector{width:100%;max-height:380px;flex:none}
+ .nx-timeline{height:215px;flex:none}
+ .nx-timeline-top{gap:5px;padding:0 7px}
+ .nx-edit-actions button{padding:0 5px}.nx-edit-actions button:nth-child(n+3){display:none}
+ .nx-timeline-foot{padding:0 6px}.nx-timeline-foot>div{gap:3px}
+ .nx-timeline-foot button{padding:0 5px;font-size:6px}
+ .nx-error-toast{left:10px;right:10px;bottom:225px;max-width:none}
+ .nx-shortcut-pop{left:12px;right:12px;top:58px}
+}
+@media(prefers-reduced-motion:reduce){.nx-ambient,.nx-preview-glow,.nx-home-orbit,.nx-drop-orb{animation:none!important}}
