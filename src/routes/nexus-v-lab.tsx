@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { SpeedPoint } from "@/lib/nexus-render-v2";
 import { NexusEditorDashboard } from "@/components/nexus-editor-dashboard";
+import { NexusMobileEditor } from "@/components/nexus-mobile-editor";
 import { listNexusProjects, requestNexusPersistentStorage, type NexusProject } from "@/lib/nexus-storage";
 
 const MAX = 650 * 1024 * 1024;
@@ -532,7 +533,33 @@ export default function NexusVLab() {
   };
 
   if(!file)return <Landing projects={projects} onPick={()=>fileRef.current?.click()} onOpen={openProject} fileRef={fileRef} onChoose={chooseFile}/>;
-  return <NexusEditorDashboard p={{file,mediaAssets,addMediaFile,addMediaFiles,addAssetToTimeline,audioAssets,audioClips,addAudioFiles,addAudioClip,removeAudioClip,updateAudioClip,audioFileRef,onVideoMetadata,animatedScale:currentAnimatedScale,animatedOpacity:currentAnimatedOpacity,animatedBlur:currentAnimatedBlur,animatedRotation:currentAnimatedRotation,animatedPosX:currentAnimatedPosX,animatedPosY:currentAnimatedPosY,animatedVolume:currentAnimatedVolume,src,output,videoRef,duration,setDuration,playhead,setPlayhead,seek,playing,setPlaying,muted,setMuted,tool,subTool,setTool,setSubTool,clips,setClips,activeClip,setActiveClip,effect,setEffect:selectEffect,effectStack,updateEffectLayer,removeEffectLayer,speed,setSpeed,speedRamp,updateRamp,volume,setVolume,pan,setPan,bass,setBass,treble,setTreble,adjustment,setAdjustment,resetAdjustments,text,setText,textLayers,addTextLayer,removeTextLayer,mask,setMask,maskFeather,setMaskFeather,blendMode,setBlendMode,chromaKey,setChromaKey,chromaColor,setChromaColor,scale,setScale,posX,setPosX,posY,setPosY,rotation,setRotation,scaleX,setScaleX,scaleY,setScaleY,opacity,setOpacity,keyframes,addKeyframe,setKeyframes,selectedProperty,setSelectedProperty,waveform,beatMarkers,addManualBeat,autoBeatMarkers,clearBeatMarkers,targetFps,setTargetFps,enhance,setEnhance,compression,setCompression,processing,progress,process,error,setError,split,deleteClip,duplicateClip,cutRange,rippleDelete,trimToPlayhead,reverseClip,freezeFrame,markIn,markOut,rangeStart,rangeEnd,mediaCollapsed,setMediaCollapsed,fileRef,addFileRef,onReplaceFile:chooseFile,onActivateClip:activateClip,applyTransition,syncPreviewTime}}/>;
+  const editorProps={
+    file,mediaAssets,addMediaFile,addMediaFiles,addAssetToTimeline,
+    audioAssets,audioClips,addAudioFiles,addAudioClip,removeAudioClip,updateAudioClip,audioFileRef,
+    onVideoMetadata,animatedScale:currentAnimatedScale,animatedOpacity:currentAnimatedOpacity,
+    animatedBlur:currentAnimatedBlur,animatedRotation:currentAnimatedRotation,animatedPosX:currentAnimatedPosX,
+    animatedPosY:currentAnimatedPosY,animatedVolume:currentAnimatedVolume,src,output,videoRef,
+    duration,setDuration,playhead,setPlayhead,seek,playing,setPlaying,muted,setMuted,
+    tool,subTool,setTool,setSubTool,clips,setClips,activeClip,setActiveClip,applyTransition,
+    effect,setEffect:selectEffect,effectStack,updateEffectLayer,removeEffectLayer,
+    speed,setSpeed,speedRamp,ramp:speedRamp,updateRamp,volume,setVolume,pan,setPan,bass,setBass,treble,setTreble,
+    compress,setCompress,audioFadeIn,setAudioFadeIn,audioFadeOut,setAudioFadeOut,normalizeAudio,setNormalizeAudio,
+    adjustment,setAdjustment,resetAdjustments,text,setText,textLayers,addTextLayer,removeTextLayer,
+    mask,setMask,maskFeather,setMaskFeather,blendMode,setBlendMode,chromaKey,setChromaKey,
+    chromaColor,setChromaColor,chromaSimilarity,setChromaSimilarity,chromaBlend,setChromaBlend,
+    backgroundRemoved,setBackgroundRemoved,scale,setScale,posX,setPosX,posY,setPosY,rotation,setRotation,
+    scaleX,setScaleX,scaleY,setScaleY,anchorX,setAnchorX,anchorY,setAnchorY,skew,setSkew,flipX,setFlipX,flipY,setFlipY,
+    upscale,setUpscale,opacity,setOpacity,keyframes,addKeyframe,setKeyframes,
+    selectedProperty,setSelectedProperty,waveform,beatMarkers,addManualBeat,autoBeatMarkers,clearBeatMarkers,
+    targetFps,setTargetFps,enhance,setEnhance,compression,setCompression,
+    processing,progress,process,onRender:()=>void process("export"),onEnhance:()=>void process("enhance"),
+    error,setError,split,deleteClip,duplicateClip,cutRange,rippleDelete,trimToPlayhead,
+    reverseClip,freezeFrame,markIn,markOut,rangeStart,rangeEnd,mediaCollapsed,setMediaCollapsed,
+    fileRef,addFileRef,onReplaceFile:chooseFile,onActivateClip:activateClip,applyTransition,syncPreviewTime
+  };
+  return isMobile
+    ? <NexusMobileEditor p={editorProps}/>
+    : <NexusEditorDashboard p={editorProps}/>;
 
   const visualStyle={
     opacity:opacity/100,
