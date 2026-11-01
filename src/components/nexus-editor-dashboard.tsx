@@ -56,7 +56,7 @@ function ToolButton({id,label,Icon,active,onClick}:{id:string;label:string;Icon:
 function EffectShelf({p}:{p:NexusEditorDashboardProps}){
  return <div className="nx-shelf-grid">{effectPresets.map(([id,label],i)=><button key={id} onClick={()=>p.setEffect(id)} className={cx("nx-preset-card",p.effect===id&&"selected")}><span className={"nx-preset-art art-"+(i%6)}><Sparkles size={22}/><i>{String(i+1).padStart(2,"0")}</i></span><b>{label}</b><small>{p.effect===id?"APPLIED":"TAP TO APPLY"}</small></button>)}</div>
 }
-function Inspector({p}:{p:NexusEditorDashboardProps}){
+export function Inspector({p}:{p:NexusEditorDashboardProps}){
  const [tab,setTab]=useState("TOOLS");
  const [filter,setFilter]=useState("");
  const setAdj=(key:string,v:number)=>p.setAdjustment(a=>({...a,[key]:v}));
@@ -83,7 +83,7 @@ function Inspector({p}:{p:NexusEditorDashboardProps}){
   </div>
  </aside>
 }
-function Timeline({p}:{p:NexusEditorDashboardProps}){
+export function Timeline({p}:{p:NexusEditorDashboardProps}){
  const [zoom,setZoom]=useState(1);
  const active=p.clips.find(c=>c.id===p.activeClip)??p.clips[0];
  const percent=(p.playhead/100)*100;
