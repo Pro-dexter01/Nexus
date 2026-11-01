@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import type { SpeedPoint } from "@/lib/nexus-render-v2";
 import { NexusEditorDashboard } from "@/components/nexus-editor-dashboard";
-import { NexusMobileEditor } from "@/components/nexus-mobile-editor";
 import { listNexusProjects, requestNexusPersistentStorage, type NexusProject } from "@/lib/nexus-storage";
 
 const MAX = 650 * 1024 * 1024;
@@ -110,7 +109,7 @@ export default function NexusVLab() {
   const [rangeStart,setRangeStart] = useState<number|null>(null);
   const [rangeEnd,setRangeEnd] = useState<number|null>(null);
   const [selectedProperty,setSelectedProperty] = useState("scale");
-  const [isMobile,setIsMobile] = useState(false);
+  const [isMobile,setIsMobile] = useState(()=>window.innerWidth<768);
   useEffect(()=>{const update=()=>setIsMobile(window.innerWidth<768);update();window.addEventListener("resize",update);return()=>window.removeEventListener("resize",update)},[]);
   const fileRef = useRef<HTMLInputElement>(null);
   const addFileRef = useRef<HTMLInputElement>(null);
@@ -555,7 +554,7 @@ export default function NexusVLab() {
     processing,progress,process,onRender:()=>void process("export"),onEnhance:()=>void process("enhance"),
     error,setError,split,deleteClip,duplicateClip,cutRange,rippleDelete,trimToPlayhead,
     reverseClip,freezeFrame,markIn,markOut,rangeStart,rangeEnd,mediaCollapsed,setMediaCollapsed,
-    fileRef,addFileRef,onReplaceFile:chooseFile,onActivateClip:activateClip,applyTransition,syncPreviewTime
+    fileRef,addFileRef,onReplaceFile:chooseFile,onActivateClip:activateClip,syncPreviewTime
   };
   return isMobile
     ? <NexusMobileEditor p={editorProps}/>
