@@ -918,38 +918,59 @@ function PresetPanel({title,items,src,active,onSelect}:{title:string;items:{id:s
 }
 function Landing({projects,onPick,onOpen,fileRef,onChoose}:{projects:any[];onPick:()=>void;onOpen:(id:string)=>void;fileRef:any;onChoose:(f?:File)=>void}){
   const [dragging,setDragging]=useState(false);
+  const [query,setQuery]=useState("");
+  const visibleProjects=projects.filter(p=>String(p.name??"").toLowerCase().includes(query.toLowerCase()));
   const handleDrop=(e:React.DragEvent<HTMLDivElement>)=>{e.preventDefault();setDragging(false);const file=e.dataTransfer.files?.[0];if(file)onChoose(file);};
-  return <main className="nx-home min-h-screen text-[#f5f0ed] flex flex-col">
-    <header className="nx-home-header h-[68px] shrink-0 px-5 sm:px-9 flex items-center justify-between">
-      <div className="flex items-center gap-3"><div className="nx-brand-mark"><Clapperboard className="h-5 w-5"/></div><div><b className="text-[15px] tracking-[.22em]">NEXUS</b><p className="text-[9px] tracking-[.24em] text-[#b8a9ae]">CREATIVE STUDIO</p></div></div>
-      <div className="hidden sm:flex items-center gap-7 text-[11px] text-[#b9b0b2]"><span>VIDEO EDITING</span><span>MOTION DESIGN</span><span>LOCAL-FIRST WORKSPACE</span></div>
-      <span className="nx-status-pill"><span/> READY TO CREATE</span>
+  return <main className="nx-home-v2">
+    <div className="nx-home-orbit nx-home-orbit-a"/><div className="nx-home-orbit nx-home-orbit-b"/>
+    <header className="nx-home-top">
+      <div className="nx-home-brand">
+        <div className="nx-emblem"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M5 8 21 18 24 23 8 14 8 39 5 41Z"/><path d="M43 8 27 18 24 23 40 14 40 39 43 41Z"/><path d="M9 18 24 27 39 18 39 22 24 32 9 22Z"/><path d="M18 28 24 24 30 28 27 31 24 29 21 31Z"/></svg><i/></div>
+        <div><b>NEXUS</b><span>CREATIVE STUDIO</span></div>
+      </div>
+      <div className="nx-home-top-meta"><span className="nx-live-dot"/> LOCAL WORKSPACE <i/> PRIVATE BY DESIGN</div>
+      <button className="nx-home-help" type="button" onClick={()=>setQuery("")}>NEW SESSION <span>↗</span></button>
     </header>
-    <section className="nx-home-main flex-1 w-full max-w-[1480px] mx-auto px-5 sm:px-9 py-8 sm:py-12">
-      <div className="max-w-3xl mb-8 sm:mb-10"><p className="nx-eyebrow">YOUR CREATIVE WORKSPACE</p><h1 className="mt-3 text-4xl sm:text-5xl lg:text-[62px] leading-[1.04] font-semibold tracking-[-.055em]">Make every frame<br/><span>move with purpose.</span></h1><p className="mt-5 max-w-2xl text-sm sm:text-base leading-7 text-[#b9afb2]">Cut with speed. Shape motion with precision. Build your next video in one flexible timeline — from quick edits to detailed keyframe animation.</p></div>
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_350px] gap-5 lg:gap-7 min-h-[430px]">
-        <div onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={handleDrop} className={"nx-import-card relative overflow-hidden rounded-[26px] border transition-all "+(dragging?"is-dragging":"")}>
-          <div className="nx-import-glow"/><div className="relative z-10 h-full min-h-[420px] p-6 sm:p-10 flex flex-col">
-            <div className="flex items-center justify-between"><span className="nx-eyebrow">START A NEW PROJECT</span><span className="nx-format-tag">UP TO 650 MB</span></div>
-            <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
-              <div className="nx-import-icon"><FileInput className="h-8 w-8"/></div>
-              <h2 className="mt-6 text-2xl sm:text-3xl font-semibold tracking-tight">{dragging?"Drop your footage here":"Bring your story to life."}</h2>
-              <p className="mt-3 text-sm text-[#b9afb2]">Drag a video into this space, or browse files on your device.</p>
-              <button onClick={onPick} className="nx-primary-button mt-7"><Plus className="h-4 w-4"/> Import media</button>
-              <p className="mt-5 text-[10px] tracking-[.16em] text-[#93868b]">MP4 · MOV · WEBM · M4V · AVI · MKV</p>
-            </div>
-            <div className="nx-workflow-strip"><div><Clapperboard/><span>QUICK EDITS</span></div><div><AudioWaveform/><span>AUDIO & RHYTHM</span></div><div><Layers3/><span>LAYERS & KEYFRAMES</span></div><div><Sparkles/><span>EFFECTS & COLOR</span></div></div>
+    <section className="nx-home-v2-content">
+      <div className="nx-home-intro">
+        <div className="nx-home-kicker"><span/> THE CREATIVE SPACE</div>
+        <h1>Make your next<br/><em>frame feel alive.</em></h1>
+        <p>One fluid workspace for video editing, motion design, sound, and finishing. Start clean or pick up exactly where you stopped.</p>
+      </div>
+      <div className="nx-home-v2-grid">
+        <div className={"nx-dropzone "+(dragging?"is-dragging":"")} onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={handleDrop}>
+          <div className="nx-drop-grid"/>
+          <div className="nx-drop-orb"/>
+          <div className="nx-drop-content">
+            <div className="nx-drop-symbol"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 7v23M15 21l9 9 9-9M9 34v6h30v-6"/></svg></div>
+            <span className="nx-home-kicker">START A NEW PROJECT</span>
+            <h2>{dragging?"Release to import":"Bring your footage in."}</h2>
+            <p>Drop a video here or browse your device to open the NEXUS editing workspace.</p>
+            <button className="nx-home-primary" onClick={onPick}><Plus size={17}/> Import media <span>↗</span></button>
+            <div className="nx-home-formats"><span>SUPPORTED FORMATS</span><b>MP4</b><b>MOV</b><b>WEBM</b><b>M4V</b><b>AVI</b><b>MKV</b><b>3GP</b></div>
           </div>
+          <div className="nx-drop-footer"><span><i/> INSTANT LOCAL IMPORT</span><span>MAX SOURCE SIZE <b>650 MB</b></span></div>
         </div>
-        <aside className="nx-projects-panel rounded-[24px] overflow-hidden flex flex-col">
-          <div className="p-5 sm:p-6 border-b border-white/[.08]"><div className="flex items-center justify-between"><div><p className="nx-eyebrow">PICK UP WHERE YOU LEFT OFF</p><h3 className="mt-2 text-xl font-semibold">Recent projects</h3></div><span className="nx-project-count">{projects.length}</span></div><p className="mt-2 text-xs leading-5 text-[#a99da1]">Projects are saved locally in this browser.</p></div>
-          <div className="flex-1 min-h-[180px] overflow-auto p-4">{projects.length?projects.map(p=><button key={p.id} onClick={()=>onOpen(p.id)} className="nx-project-row w-full text-left rounded-xl p-3 mb-2 flex items-center gap-3"><div className="nx-project-thumb"><Film className="h-5 w-5"/></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-[#eee6e4]">{p.name}</p><p className="mt-1 text-[10px] text-[#a99da1]">{(p.fileSize/1048576).toFixed(1)} MB · LOCAL PROJECT</p></div><ChevronDown className="h-4 w-4 -rotate-90 text-[#a99da1]"/></button>):<div className="h-full min-h-[180px] flex flex-col items-center justify-center text-center px-5"><div className="nx-empty-icon"><Film className="h-5 w-5"/></div><p className="mt-4 text-sm font-medium">Your next project starts here</p><p className="mt-2 max-w-[220px] text-xs leading-5 text-[#a99da1]">Import footage to create a project. Your recent work will appear in this space.</p></div>}</div>
-          <div className="p-4 border-t border-white/[.08]"><div className="flex items-center justify-between text-[10px] text-[#a99da1]"><span>BUILT FOR CREATORS</span><span>CAPCUT SPEED · MOTION DEPTH</span></div></div>
+        <aside className="nx-recent-v2">
+          <div className="nx-recent-head"><div><span className="nx-home-kicker">YOUR WORK</span><h3>Recent projects <b>{projects.length.toString().padStart(2,"0")}</b></h3></div><span className="nx-recent-mark">↗</span></div>
+          <label className="nx-project-search"><span>⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Find a project..."/><kbd>/</kbd></label>
+          <div className="nx-project-list">
+            {visibleProjects.length?visibleProjects.map((p:any,i:number)=><button key={p.id} onClick={()=>onOpen(p.id)} className="nx-project-v2">
+              <span className="nx-project-art"><i/><b>{String(i+1).padStart(2,"0")}</b></span>
+              <span className="nx-project-info"><b>{p.name}</b><small>{(p.fileSize/1048576).toFixed(1)} MB <i/> LOCAL PROJECT</small></span><span className="nx-project-open">↗</span>
+            </button>):<div className="nx-project-empty"><div className="nx-empty-mark">N</div><b>{query?"No matching projects":"Your timeline is waiting."}</b><p>{query?"Try another project name.":"Your saved edits will appear here after your first project."}</p></div>}
+          </div>
+          <div className="nx-recent-foot"><span><i/> AUTO-SAVED LOCALLY</span><span>PROJECT LIBRARY</span></div>
         </aside>
       </div>
-      <div className="grid sm:grid-cols-3 gap-3 mt-6"><div className="nx-feature-tile"><Scissors/><div><b>Fast editing</b><p>Trim, split, arrange and refine clips.</p></div></div><div className="nx-feature-tile"><Gauge/><div><b>Motion control</b><p>Animate properties with keyframes and curves.</p></div></div><div className="nx-feature-tile"><Palette/><div><b>Creative finishing</b><p>Shape color, sound, effects and delivery.</p></div></div></div>
+      <div className="nx-capability-row">
+        <div><Scissors/><span><b>EDIT WITH FLOW</b><small>Cut, trim and shape every scene</small></span></div>
+        <div><AudioWaveform/><span><b>BUILD THE SOUND</b><small>Layer music, voice and effects</small></span></div>
+        <div><Layers3/><span><b>DESIGN IN MOTION</b><small>Keyframes, curves and layers</small></span></div>
+        <div><Sparkles/><span><b>FINISH WITH INTENT</b><small>Color, effects and export</small></span></div>
+      </div>
     </section>
-    <footer className="px-5 sm:px-9 py-5 border-t border-white/[.07] text-[10px] text-[#887c81] flex justify-between"><span>NEXUS CREATIVE STUDIO</span><span>YOUR MEDIA STAYS ON THIS DEVICE</span></footer>
+    <footer className="nx-home-bottom"><span><b>NEXUS</b> / FLUX CREATIVE ENGINE</span><span>YOUR MEDIA STAYS ON THIS DEVICE <i/> BUILT FOR THE FRAME</span></footer>
     <input ref={fileRef} type="file" accept="video/*,.mp4,.mov,.webm,.m4v,.avi,.mkv,.mpeg,.mpg,.3gp" className="hidden" onChange={e=>{const input=e.currentTarget;onChoose(input.files?.[0]);input.value="";}}/>
   </main>;
 }
