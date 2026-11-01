@@ -37,7 +37,7 @@ export function NexusMobileEditor({p}:{p:NexusEditorDashboardProps}){
   const title=panel==="MEDIA"?"Media bin":panel==="EDIT"?"Clip editing":panel==="KEYFRAMES"||panel==="GRAPH"?"Motion studio":panel==="AUDIO"||panel==="VOICE"||panel==="SOUND_FX"?"Audio controls":panel==="EFFECTS"?"Effect studio":panel==="COLOR"||panel==="ADJUST"?"Color lab":panel==="TRANSFORM"?"Transform":panel==="SPEED"?"Time remapping":panel==="LAYERS"?"Compositing":panel==="MASK"?"Mask controls":panel==="TEXT"?"Typography":panel==="CAPTIONS"?"Captions":panel==="ENHANCE"?"Enhancement":panel;
   return <main className="nx-mobile-studio">
     <header className="nx-mobile-topbar">
-      <div className="nx-mobile-brand"><span className="nx-mobile-mark">N<span>×</span></span><div><b>NEXUS</b><small>FLUX CREATIVE STUDIO</small></div></div>
+      <div className="nx-mobile-brand"><span className="nx-mobile-mark">N<span>×</span></span><div><b>NEXUS</b><small>CREATIVE STUDIO</small></div></div>
       <div className="nx-mobile-project"><i/> <span>{p.file.name}</span></div>
       <button className="nx-mobile-export" onClick={()=>void p.process("export")} disabled={p.processing}><Download size={15}/><span>{p.processing?"Rendering":"Export"}</span></button>
     </header>
