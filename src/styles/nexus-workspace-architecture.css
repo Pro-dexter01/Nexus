@@ -124,3 +124,47 @@
   .nx-mobile-preview video{max-height:27dvh}
   .nx-mobile-timeline-wrap .nx-timeline{height:145px!important;min-height:145px}
 }
+
+
+/* Mobile project hub: Alight Motion-inspired navigation rhythm, native NEXUS surfaces. */
+@media(max-width:767px){
+  .nx-home-v2{min-height:100svh;padding:0 14px}
+  .nx-home-top{height:62px;gap:8px}
+  .nx-home-brand{gap:8px}.nx-emblem{width:34px;height:34px;border-radius:10px}
+  .nx-emblem svg{width:26px;height:26px}
+  .nx-home-brand>div:last-child b{font-size:13px;letter-spacing:.22em}
+  .nx-home-brand>div:last-child span{font-size:6px;letter-spacing:.18em}
+  .nx-home-top-meta{display:none}
+  .nx-home-help{padding:9px 10px;font-size:7px;gap:7px}
+  .nx-home-v2-content{padding:26px 0 18px}
+  .nx-home-intro{margin-bottom:19px}
+  .nx-home-intro h1{margin:12px 0 9px;font-size:clamp(34px,10vw,48px);line-height:1.02}
+  .nx-home-intro p{font-size:11px;line-height:1.65}
+  .nx-home-kicker{font-size:8px}
+  .nx-home-v2-grid{grid-template-columns:minmax(0,1fr);gap:11px;min-height:0}
+  .nx-dropzone{min-height:300px;border-radius:15px}
+  .nx-drop-content{padding:25px 16px 50px}
+  .nx-drop-symbol{width:52px;height:52px;margin-bottom:16px;border-radius:15px}
+  .nx-drop-content h2{font-size:22px}
+  .nx-drop-content p{font-size:11px}
+  .nx-home-primary{margin-top:16px;padding:12px 18px}
+  .nx-home-formats{gap:5px;margin-top:15px}
+  .nx-home-formats span{width:100%;margin:0 0 2px}
+  .nx-drop-footer{padding:11px 12px;font-size:6px}
+  .nx-recent-v2{min-height:245px;padding:16px 14px 0;border-radius:15px}
+  .nx-recent-head h3{font-size:16px}
+  .nx-recent-foot{margin-inline:-14px;padding:11px 14px}
+  .nx-capability-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:11px}
+  .nx-capability-row>div{gap:8px;padding:11px 9px}
+  .nx-capability-row svg{width:16px;height:16px}
+  .nx-capability-row b{font-size:7px}
+  .nx-capability-row small{font-size:7px}
+  .nx-home-bottom{height:auto;min-height:42px;flex-wrap:wrap;padding:10px 0;font-size:6px}
+  .nx-home-bottom>span:last-child{display:none}
+}
+@media(max-width:380px){
+  .nx-home-v2{padding-inline:10px}
+  .nx-home-help{font-size:6px;padding:8px}
+  .nx-dropzone{min-height:280px}
+  .nx-capability-row>div{padding:9px 7px}
+}
