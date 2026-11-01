@@ -18,7 +18,7 @@ const mobileTools: MobileTool[] = [
 ];
 
 export function NexusMobileEditor({p}:{p:NexusEditorDashboardProps}){
-  const [panel,setPanel]=useState("MEDIA");
+  const [panel,setPanel]=useState("");
   const [showTimeline,setShowTimeline]=useState(true);
   const active=p.clips.find(c=>c.id===p.activeClip)??p.clips[0];
   const play=()=>{
@@ -30,9 +30,9 @@ export function NexusMobileEditor({p}:{p:NexusEditorDashboardProps}){
     }else{video.pause();p.setPlaying(false);}
   };
   const chooseTool=(id:string)=>{
-    if(id==="MEDIA"){setPanel("MEDIA");return;}
+    if(id==="MEDIA"){setPanel(current=>current==="MEDIA"?"":"MEDIA");return;}
     p.setTool(id as any);
-    setPanel(id);
+    setPanel(current=>current===id?"":id);
   };
   const title=panel==="MEDIA"?"Media bin":panel==="EDIT"?"Clip editing":panel==="KEYFRAMES"||panel==="GRAPH"?"Motion studio":panel==="AUDIO"||panel==="VOICE"||panel==="SOUND_FX"?"Audio controls":panel==="EFFECTS"?"Effect studio":panel==="COLOR"||panel==="ADJUST"?"Color lab":panel==="TRANSFORM"?"Transform":panel==="SPEED"?"Time remapping":panel==="LAYERS"?"Compositing":panel==="MASK"?"Mask controls":panel==="TEXT"?"Typography":panel==="CAPTIONS"?"Captions":panel==="ENHANCE"?"Enhancement":panel;
   return <main className="nx-mobile-studio">
