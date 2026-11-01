@@ -1,0 +1,39 @@
+/* NEXUS workspace architecture: CapCut-style placement, retaining NEXUS theme tokens and surfaces. */
+.nx-capcut-tool-nav{
+  flex:none;min-height:46px;display:flex;align-items:stretch;gap:4px;
+  padding:0 12px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid rgba(255,255,255,.08);
+}
+.nx-capcut-tool-nav::-webkit-scrollbar,.nx-capcut-edit-toolbar::-webkit-scrollbar{display:none}
+.nx-capcut-tool-nav button{
+  flex:none;min-width:72px;display:flex;align-items:center;justify-content:center;gap:7px;
+  padding:0 11px;border:0;border-bottom:2px solid transparent;border-radius:0;
+  background:transparent;color:inherit;font-size:10px;font-weight:600;opacity:.76;
+}
+.nx-capcut-tool-nav button:hover,.nx-capcut-tool-nav button.active{opacity:1;border-bottom-color:var(--flux-cyan)}
+.nx-capcut-edit-toolbar{
+  flex:none;min-height:42px;display:flex;align-items:center;gap:5px;padding:0 12px;
+  overflow-x:auto;scrollbar-width:none;border-top:1px solid rgba(255,255,255,.08);
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+.nx-capcut-edit-toolbar button{
+  flex:none;min-height:28px;display:flex;align-items:center;justify-content:center;gap:6px;
+  padding:0 9px;border:1px solid rgba(255,255,255,.09);border-radius:6px;
+  background:rgba(255,255,255,.035);color:inherit;font-size:9px;font-weight:600;white-space:nowrap;
+}
+.nx-capcut-edit-toolbar button:hover{background:rgba(255,255,255,.09)}
+.nx-capcut-toolbar-spacer{flex:1;min-width:8px}
+.nx-workspace{gap:0;padding:0 10px 8px}
+.nx-left-rail{display:none!important}
+.nx-media-panel,.nx-inspector{border-radius:12px}
+.nx-media-panel{width:260px}
+.nx-inspector{width:285px}
+.nx-center-stage{border-radius:12px;margin:0 8px}
+.nx-quick-tools{display:none!important}
+.nx-timeline{border-radius:12px 12px 0 0}
+@media(max-width:1100px){
+ .nx-media-panel{width:220px}.nx-inspector{width:240px}
+ .nx-capcut-tool-nav button{min-width:64px;padding:0 8px}
+}
+@media(max-width:767px){
+ .nx-capcut-tool-nav,.nx-capcut-edit-toolbar{display:none!important}
+}
